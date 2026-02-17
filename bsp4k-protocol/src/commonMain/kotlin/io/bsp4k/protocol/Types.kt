@@ -10,3 +10,9 @@ public typealias URI = String
 public data class BuildTargetIdentifier(
     val uri: URI,
 )
+
+/** Identifies a text document by its URI. */
+@Serializable
+public data class TextDocumentIdentifier(
+    val uri: URI,
+)

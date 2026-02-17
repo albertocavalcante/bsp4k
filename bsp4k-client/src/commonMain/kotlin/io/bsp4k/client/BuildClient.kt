@@ -22,7 +22,6 @@ import io.bsp4k.protocol.JvmCompileClasspathResult
 import io.bsp4k.protocol.JvmEnvironmentParams
 import io.bsp4k.protocol.JvmEnvironmentResult
 import io.bsp4k.protocol.LogMessageParams
-import io.bsp4k.protocol.MessageType
 import io.bsp4k.protocol.OutputPathsParams
 import io.bsp4k.protocol.OutputPathsResult
 import io.bsp4k.protocol.PublishDiagnosticsParams
@@ -123,19 +122,15 @@ public class BuildClientBuilder {
     /**
      * Handle `build/logMessage` notifications.
      */
-    public fun onLogMessage(handler: suspend (MessageType, String) -> Unit) {
-        handleNotification<LogMessageParams>(BspMethods.BUILD_LOG_MESSAGE) {
-            handler(it.type, it.message)
-        }
+    public fun onLogMessage(handler: suspend (LogMessageParams) -> Unit) {
+        handleNotification(BspMethods.BUILD_LOG_MESSAGE, handler)
     }
 
     /**
      * Handle `build/showMessage` notifications.
      */
-    public fun onShowMessage(handler: suspend (MessageType, String) -> Unit) {
-        handleNotification<ShowMessageParams>(BspMethods.BUILD_SHOW_MESSAGE) {
-            handler(it.type, it.message)
-        }
+    public fun onShowMessage(handler: suspend (ShowMessageParams) -> Unit) {
+        handleNotification(BspMethods.BUILD_SHOW_MESSAGE, handler)
     }
 
     /**

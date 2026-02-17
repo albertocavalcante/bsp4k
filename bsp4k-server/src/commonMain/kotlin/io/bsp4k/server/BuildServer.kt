@@ -537,19 +537,29 @@ public class BuildClientProxy internal constructor(
     }
 
     /** Sends a `build/logMessage` notification. */
+    public suspend fun logMessage(params: LogMessageParams) {
+        sendNotification(BspMethods.BUILD_LOG_MESSAGE, params)
+    }
+
+    /** Sends a `build/logMessage` notification with the given [type] and [message]. */
     public suspend fun logMessage(
         type: MessageType,
         message: String,
     ) {
-        sendNotification(BspMethods.BUILD_LOG_MESSAGE, LogMessageParams(type = type, message = message))
+        logMessage(LogMessageParams(type = type, message = message))
     }
 
     /** Sends a `build/showMessage` notification. */
+    public suspend fun showMessage(params: ShowMessageParams) {
+        sendNotification(BspMethods.BUILD_SHOW_MESSAGE, params)
+    }
+
+    /** Sends a `build/showMessage` notification with the given [type] and [message]. */
     public suspend fun showMessage(
         type: MessageType,
         message: String,
     ) {
-        sendNotification(BspMethods.BUILD_SHOW_MESSAGE, ShowMessageParams(type = type, message = message))
+        showMessage(ShowMessageParams(type = type, message = message))
     }
 
     /** Sends a `build/publishDiagnostics` notification. */

@@ -29,3 +29,4 @@ includeBuild("../jsonrpc4k") {
 include(":bsp4k-protocol")
 include(":bsp4k-server")
 include(":bsp4k-client")
+include(":example")

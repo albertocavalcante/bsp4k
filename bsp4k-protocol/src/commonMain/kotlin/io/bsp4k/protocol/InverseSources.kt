@@ -13,9 +13,3 @@ public data class InverseSourcesParams(
 public data class InverseSourcesResult(
     val targets: List<BuildTargetIdentifier>,
 )
-
-/** Identifies a text document by its URI. */
-@Serializable
-public data class TextDocumentIdentifier(
-    val uri: URI,
-)
