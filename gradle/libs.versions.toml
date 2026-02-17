@@ -7,7 +7,7 @@ jsonrpc4k = "0.1.0-SNAPSHOT"
 
 # Linting
 detekt = "1.23.8"
-spotless = "8.1.0"
+spotless = "8.2.1"
 
 # Coverage
 kover = "0.8.3"
