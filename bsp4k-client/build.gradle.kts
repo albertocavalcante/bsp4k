@@ -1,5 +1,6 @@
 plugins {
     id("bsp4k.multiplatform")
+    id("publishing-convention")
 }
 
 kotlin {

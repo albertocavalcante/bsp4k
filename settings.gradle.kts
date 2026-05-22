@@ -16,13 +16,17 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
-includeBuild("../jsonrpc4k") {
-    dependencySubstitution {
-        substitute(module("io.jsonrpc4k:jsonrpc4k-core")).using(project(":jsonrpc4k-core"))
-        substitute(module("io.jsonrpc4k:jsonrpc4k-transport")).using(project(":jsonrpc4k-transport"))
+val jsonrpc4kDir = file("../jsonrpc4k")
+if (jsonrpc4kDir.exists()) {
+    includeBuild(jsonrpc4kDir) {
+        dependencySubstitution {
+            substitute(module("io.github.albertocavalcante:jsonrpc4k-core")).using(project(":jsonrpc4k-core"))
+            substitute(module("io.github.albertocavalcante:jsonrpc4k-transport")).using(project(":jsonrpc4k-transport"))
+        }
     }
 }
 

@@ -111,9 +111,9 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.bsp4k:bsp4k-server:0.1.0")
+    implementation("io.github.albertocavalcante:bsp4k-server:0.1.0")
     // or
-    implementation("io.bsp4k:bsp4k-client:0.1.0")
+    implementation("io.github.albertocavalcante:bsp4k-client:0.1.0")
 }
 ```
 

@@ -18,8 +18,8 @@ junit = "5.11.4"
 
 [libraries]
 # JSON-RPC
-jsonrpc4k-core = { module = "io.jsonrpc4k:jsonrpc4k-core", version.ref = "jsonrpc4k" }
-jsonrpc4k-transport = { module = "io.jsonrpc4k:jsonrpc4k-transport", version.ref = "jsonrpc4k" }
+jsonrpc4k-core = { module = "io.github.albertocavalcante:jsonrpc4k-core", version.ref = "jsonrpc4k" }
+jsonrpc4k-transport = { module = "io.github.albertocavalcante:jsonrpc4k-transport", version.ref = "jsonrpc4k" }
 
 # Kotlin
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
