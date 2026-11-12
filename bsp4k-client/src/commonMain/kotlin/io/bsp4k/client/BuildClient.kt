@@ -45,8 +45,7 @@ import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 
@@ -213,9 +212,10 @@ public class BuildClientBuilder {
 public class BuildClientSession internal constructor(
     private val config: BuildClientConfig,
     private val connection: Connection,
-    private val scope: CoroutineScope,
+    private val lifecycle: SessionLifecycle,
 ) {
     private val json = JsonRpcCodec.defaultJson
+    private val shutdownStarted = MutableStateFlow(false)
 
     /**
      * Server proxy for sending requests to the build server.
@@ -256,19 +256,36 @@ public class BuildClientSession internal constructor(
     }
 
     /**
-     * Shutdown the connection.
+     * Requests shutdown and waits for the exit frame to be sent to the transport.
+     * This does not guarantee peer receipt. The caller may bound the wait with a timeout;
+     * cancellation aborts the session without closing the borrowed transport.
      */
     public suspend fun shutdown() {
-        connection.request<JsonElement?>(BspMethods.BUILD_SHUTDOWN, null)
-        connection.notify(BspMethods.BUILD_EXIT, null)
+        check(shutdownStarted.compareAndSet(false, true)) { "Shutdown already started" }
+        try {
+            connection.request<JsonElement?>(BspMethods.BUILD_SHUTDOWN, null)
+            connection.notify(BspMethods.BUILD_EXIT, null)
+            lifecycle.flushOutgoing()
+        } finally {
+            lifecycle.close()
+        }
     }
 
     /**
-     * Close the client connection.
+     * Stop the client immediately, canceling pending requests and discarding unsent frames.
+     * Use [shutdown] for orderly exit. The transport remains caller-owned.
      */
     public fun close() {
-        connection.close()
+        lifecycle.close()
     }
+
+    /**
+     * Waits for session jobs to stop. Returns the first read or write failure, or null on EOF,
+     * explicit close, graceful exit, or parent cancellation. The transport remains caller-owned
+     * and its suspending operations must cooperate with coroutine cancellation. A caller may
+     * need to close its transport to unblock a blocking read before this function can return.
+     */
+    public suspend fun awaitTermination(): Throwable? = lifecycle.awaitTermination()
 }
 
 /**
@@ -362,27 +379,21 @@ public fun buildClient(block: BuildClientBuilder.() -> Unit): BuildClientConfig 
 
 /**
  * Start a build client session with the given configuration and transport.
+ * The supplied scope and transport remain caller-owned; closing a session does not close the transport.
  */
 public suspend fun BuildClientConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
 ): BuildClientSession {
     notificationHandlers.keys.forEach(::requireNotReserved)
-    val connection = Connection(scope = scope)
-    val session = BuildClientSession(this, connection, scope)
-    session.setup()
-
-    scope.launch {
-        transport.incoming.collect { data ->
-            connection.receive(data)
-        }
+    val lifecycle = SessionLifecycle(scope)
+    val session = BuildClientSession(this, lifecycle.connection, lifecycle)
+    try {
+        session.setup()
+        lifecycle.start(transport)
+    } catch (failure: Throwable) {
+        lifecycle.fail(failure)
+        throw failure
     }
-
-    scope.launch {
-        connection.outgoing.collect { data ->
-            transport.send(data)
-        }
-    }
-
     return session
 }
