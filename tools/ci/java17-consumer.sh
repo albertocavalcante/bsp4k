@@ -6,6 +6,7 @@ set -euo pipefail
 : "${GITHUB_RUN_ATTEMPT:?A unique run attempt is required}"
 : "${JAVA_HOME_17_X64:?JDK 17 is required}"
 
+tools/ci/check-publish-workflow.sh
 tools/ci/registry-routing.sh
 
 export BSP_FIXTURE_VERSION="0.0.0-java17-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
