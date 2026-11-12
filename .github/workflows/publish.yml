@@ -68,7 +68,7 @@ jobs:
             echo "::error::Publication requires a non-snapshot version tag."
             exit 1
           fi
-          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
 
       - name: Publish
         run: |
