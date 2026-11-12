@@ -45,17 +45,15 @@ gradle.rootProject {
         .files
     val artifacts = modules.associateWith { files(it, "1.0") }
     val missing = files("jsonrpc4k-core", "2.0")
+    tasks.register("verifyMissingRegistryRoute") {
+        inputs.files(missing)
+        doLast { error("Missing JSON-RPC artifact incorrectly resolved from fallback") }
+    }
     tasks.register("verifyRegistryRoute") {
         doLast {
             for ((module, artifact) in artifacts) {
                 val expected = if (module == "bsp4k-route-canary" || module == "jsonrpc4k-coreevil") "fallback" else "primary"
                 check(artifact.singleFile.readText() == "$expected:$module") { "Wrong repository for $module" }
-            }
-            val failure =
-                runCatching { missing.singleFile }.exceptionOrNull()
-                    ?: error("Missing JSON-RPC artifact incorrectly resolved from fallback")
-            check("Could not find $group:jsonrpc4k-core:2.0." in failure.stackTraceToString()) {
-                "Resolution failed for an unrelated reason: $failure"
             }
         }
     }

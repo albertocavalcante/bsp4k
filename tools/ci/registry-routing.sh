@@ -40,3 +40,14 @@ fi
 env -u GITHUB_TOKEN -u GITHUB_ACTOR ./gradlew "${common[@]}" \
 	-Dorg.gradle.project.gpr.user=fixture-user -Dorg.gradle.project.gpr.key=fixture-token \
 	-Pjsonrpc4k.repository=github verifyRegistryRoute
+# Missing primary content must fail even though a matching fallback canary exists.
+if env -u GITHUB_TOKEN -u GITHUB_ACTOR ./gradlew "${common[@]}" \
+	-Pjsonrpc4k.repository=github verifyMissingRegistryRoute >"$fixture_root/missing.log" 2>&1; then
+	printf 'Missing JSON-RPC artifact unexpectedly resolved from fallback\n' >&2
+	exit 1
+fi
+if ! grep -Fq 'Could not find io.github.albertocavalcante:jsonrpc4k-core:2.0.' "$fixture_root/missing.log"; then
+	cat "$fixture_root/missing.log" >&2
+	printf 'Missing-artifact probe failed for an unrelated reason\n' >&2
+	exit 1
+fi
