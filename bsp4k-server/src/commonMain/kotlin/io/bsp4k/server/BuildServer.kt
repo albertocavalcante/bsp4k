@@ -92,7 +92,10 @@ public data class BuildServerConfig(
 private val reservedRequests = setOf(BspMethods.BUILD_INITIALIZE, BspMethods.BUILD_SHUTDOWN)
 private val reservedNotifications = setOf(BspMethods.BUILD_INITIALIZED, BspMethods.BUILD_EXIT, "$/cancelRequest")
 
-private fun requireNotReserved(method: String, reserved: Set<String>) {
+private fun requireNotReserved(
+    method: String,
+    reserved: Set<String>,
+) {
     require(method !in reserved) { "Cannot register a handler for reserved method: $method" }
 }
 

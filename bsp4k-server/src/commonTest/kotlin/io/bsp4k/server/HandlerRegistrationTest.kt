@@ -101,6 +101,8 @@ class HandlerRegistrationTest {
 private object UnusedTransport : Transport {
     override val incoming: Flow<ByteArray> get() = error("transport must not be used")
     override val isConnected: Boolean get() = error("transport must not be used")
+
     override suspend fun send(data: ByteArray): Unit = error("transport must not be used")
+
     override suspend fun close(): Unit = error("transport must not be used")
 }
