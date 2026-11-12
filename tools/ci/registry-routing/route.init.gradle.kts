@@ -1,6 +1,7 @@
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 
 settingsEvaluated {
+    if (rootProject.name != "bsp4k") return@settingsEvaluated
     val repositories = dependencyResolutionManagement.repositories
     val selected = providers.gradleProperty("jsonrpc4k.repository").orNull == "github"
     val route = repositories.findByName("Jsonrpc4kGitHubPackages") as? MavenArtifactRepository
@@ -19,6 +20,7 @@ settingsEvaluated {
 }
 
 gradle.rootProject {
+    if (name != "bsp4k") return@rootProject
     tasks.register("verifyRegistryRoute") {
         doLast {
             val group = "io.github.albertocavalcante"
