@@ -68,6 +68,21 @@ public data class BuildClientConfig(
     val notificationHandlers: Map<String, NotificationHandler>,
 )
 
+private const val CANCEL_REQUEST = "$/cancelRequest"
+
+private fun requireNotReserved(method: String) {
+    require(method != CANCEL_REQUEST) { "Cannot register a handler for reserved method: $method" }
+}
+
+@PublishedApi
+internal fun <H> MutableMap<String, H>.putUniqueHandler(
+    method: String,
+    handler: H,
+) {
+    require(method !in this) { "Handler already registered for method: $method" }
+    this[method] = handler
+}
+
 /**
  * Builder for build client configuration.
  */
@@ -85,11 +100,13 @@ public class BuildClientBuilder {
         method: String,
         crossinline extract: suspend (P) -> Unit,
     ) {
-        notificationHandlers[method] =
+        notificationHandlers.putUniqueHandler(
+            method,
             NotificationHandler { params ->
                 val typed = params?.let { json.decodeFromJsonElement(serializer<P>(), it) }
                 if (typed != null) extract(typed)
-            }
+            },
+        )
     }
 
     /**
@@ -175,7 +192,8 @@ public class BuildClientBuilder {
         method: String,
         handler: NotificationHandler,
     ) {
-        notificationHandlers[method] = handler
+        requireNotReserved(method)
+        notificationHandlers.putUniqueHandler(method, handler)
     }
 
     internal fun build(): BuildClientConfig =
@@ -349,6 +367,7 @@ public suspend fun BuildClientConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
 ): BuildClientSession {
+    notificationHandlers.keys.forEach(::requireNotReserved)
     val connection = Connection(scope = scope)
     val session = BuildClientSession(this, connection, scope)
     session.setup()
