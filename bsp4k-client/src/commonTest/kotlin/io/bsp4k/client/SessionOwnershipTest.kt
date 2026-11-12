@@ -283,6 +283,7 @@ private class ScriptedTransport(
                 if (message.method == "build/exit") {
                     exitStarted.complete(Unit)
                     releaseExit.await()
+                    exitFailure?.let { throw it }
                     exitSent = true
                 }
             else -> Unit
