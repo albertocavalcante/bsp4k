@@ -10,6 +10,7 @@ import io.jsonrpc4k.core.ResponseMessage
 import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -137,6 +138,26 @@ class SessionOwnershipTest {
             assertTrue(parent.isActive)
             assertTrue(sibling.isActive)
             assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `fatal send failure is reported after session cleanup`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val reported = CompletableDeferred<Throwable>()
+            val handler = CoroutineExceptionHandler { _, error -> reported.complete(error) }
+            val scope = CoroutineScope(backgroundScope.coroutineContext + handler + parent)
+            val failure = AssertionError("fatal transport failure")
+            val session = buildClient {}.start(ScriptedTransport(failure = failure), scope)
+            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            runCurrent()
+            assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
+            val terminal = withTimeout(5_000) { session.awaitTermination() }
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
+            val observed = withTimeout(5_000) { reported.await() }
+            assertTrue(generateSequence<Throwable>(observed) { it.cause }.take(8).any { it === failure })
+            assertTrue(parent.isActive)
             parent.cancel()
         }
 

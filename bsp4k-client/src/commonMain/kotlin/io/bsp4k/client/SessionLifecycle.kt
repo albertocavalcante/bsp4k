@@ -43,6 +43,7 @@ internal class SessionLifecycle(
                 if (currentCoroutineContext().isActive) finish(cancelled) else throw cancelled
             } catch (failure: Throwable) {
                 finish(failure)
+                if (failure !is Exception) throw failure
             }
         }
         scope.launch {
@@ -53,6 +54,7 @@ internal class SessionLifecycle(
                 if (currentCoroutineContext().isActive) finish(cancelled) else throw cancelled
             } catch (failure: Throwable) {
                 finish(failure)
+                if (failure !is Exception) throw failure
             }
         }
     }
@@ -62,6 +64,18 @@ internal class SessionLifecycle(
     fun fail(cause: Throwable) = finish(cause)
 
     suspend fun awaitTermination(): Throwable? = terminated.await()
+
+    suspend fun flushOutgoing() {
+        try {
+            connection.flushOutgoing()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            // A failed send can wake the flush before the writer catches that same failure.
+            if (job.isActive) fail(failure.cause ?: failure)
+            throw failure
+        }
+    }
 
     private fun finish(cause: Throwable?) {
         if (end.compareAndSet(null, End(cause))) {
