@@ -183,7 +183,7 @@ class SessionOwnershipTest {
             val failure = IllegalStateException("exit send failed")
             val transport = ScriptedTransport(exitFailure = failure)
             val session = buildClient {}.start(transport, scope)
-            val shutdown = async { runCatching { session.shutdown() } }
+            val shutdown = async(UnconfinedTestDispatcher(testScheduler)) { runCatching { session.shutdown() } }
             runCurrent()
             assertTrue(transport.exitStarted.isCompleted)
             transport.releaseExit.complete(Unit)
