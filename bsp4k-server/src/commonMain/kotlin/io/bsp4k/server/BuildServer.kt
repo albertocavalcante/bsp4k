@@ -400,11 +400,13 @@ public class WorkspaceHandlersBuilder(
 
     /** Registers a handler for `workspace/reload` requests. */
     public fun reload(handler: suspend () -> Unit) {
-        requestHandlers[BspMethods.WORKSPACE_RELOAD] =
+        requestHandlers.putUniqueHandler(
+            BspMethods.WORKSPACE_RELOAD,
             RequestHandler { _ ->
                 handler()
                 null
-            }
+            },
+        )
     }
 }
 

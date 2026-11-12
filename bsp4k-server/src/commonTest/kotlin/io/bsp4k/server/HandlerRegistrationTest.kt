@@ -53,6 +53,26 @@ class HandlerRegistrationTest {
                 onNotification("custom") {}
             }
         }
+        assertFailsWith<IllegalArgumentException> {
+            buildServer {
+                workspace {
+                    reload {}
+                    reload {}
+                }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            buildServer {
+                onRequest(BspMethods.WORKSPACE_RELOAD) { null }
+                workspace { reload {} }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            buildServer {
+                workspace { reload {} }
+                onRequest(BspMethods.WORKSPACE_RELOAD) { null }
+            }
+        }
         val config =
             buildServer {
                 onRequest("one") { null }
