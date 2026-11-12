@@ -70,13 +70,28 @@ jobs:
           fi
           printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
 
+      - name: Preflight complete publication to a private file repository
+        run: |
+          preflight_dir=$(mktemp -d "$RUNNER_TEMP/bsp4k-publish-preflight.XXXXXXXX")
+          trap 'rm -rf "$preflight_dir"' EXIT
+          export BSP_PREFLIGHT_REPOSITORY="$preflight_dir/repository"
+          publication_args=()
+          if [[ -n "$RELEASE_VERSION" ]]; then
+            publication_args+=("-PVERSION_NAME=$RELEASE_VERSION")
+          fi
+          ./gradlew publishAllPublicationsToPreflightRepository --refresh-dependencies \
+            -Pbsp4k.useLocalJsonrpc4k=false \
+            --init-script tools/ci/publication-preflight.init.gradle.kts "${publication_args[@]}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+
       - name: Publish
         run: |
           publication_args=()
           if [[ -n "$RELEASE_VERSION" ]]; then
             publication_args+=("-PVERSION_NAME=$RELEASE_VERSION")
           fi
-          ./gradlew publishAllPublicationsToGitHubPackagesRepository "${publication_args[@]}"
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository -Pbsp4k.useLocalJsonrpc4k=false "${publication_args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}

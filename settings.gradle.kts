@@ -21,7 +21,14 @@ dependencyResolutionManagement {
 }
 
 val jsonrpc4kDir = file("../jsonrpc4k")
-if (jsonrpc4kDir.exists()) {
+val useLocalJsonrpc4k =
+    providers
+        .gradleProperty("bsp4k.useLocalJsonrpc4k")
+        .map { value ->
+            require(value == "true" || value == "false") { "bsp4k.useLocalJsonrpc4k must be true or false" }
+            value.toBoolean()
+        }.getOrElse(true)
+if (useLocalJsonrpc4k && jsonrpc4kDir.exists()) {
     includeBuild(jsonrpc4kDir) {
         dependencySubstitution {
             substitute(module("io.github.albertocavalcante:jsonrpc4k-core")).using(project(":jsonrpc4k-core"))
