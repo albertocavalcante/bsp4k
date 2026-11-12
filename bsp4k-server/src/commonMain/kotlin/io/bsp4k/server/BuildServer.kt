@@ -53,9 +53,6 @@ import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
@@ -456,7 +453,7 @@ public class JvmHandlersBuilder(
 public class BuildServer internal constructor(
     private val config: BuildServerConfig,
     private val connection: Connection,
-    private val scope: CoroutineScope,
+    private val lifecycle: SessionLifecycle,
 ) {
     @Volatile
     private var initialized = false
@@ -502,7 +499,11 @@ public class BuildServer internal constructor(
         }
 
         connection.onNotification(BspMethods.BUILD_EXIT) { _ ->
-            scope.cancel()
+            try {
+                connection.flushOutgoing()
+            } finally {
+                lifecycle.close()
+            }
         }
 
         // Register user-provided request handlers with state checks
@@ -521,6 +522,16 @@ public class BuildServer internal constructor(
             }
         }
     }
+
+    /** Stops immediately, canceling pending work and discarding unsent frames; the transport remains caller-owned. */
+    public fun close() = lifecycle.close()
+
+    /**
+     * Waits for session jobs to stop. Returns the first read or write failure, or null on EOF,
+     * explicit close, graceful exit, or parent cancellation. The transport remains caller-owned
+     * and its suspending operations must cooperate with coroutine cancellation.
+     */
+    public suspend fun awaitTermination(): Throwable? = lifecycle.awaitTermination()
 
     private fun handleInitialize(params: JsonElement?): JsonElement {
         val json = JsonRpcCodec.defaultJson
@@ -642,6 +653,7 @@ public fun buildServer(block: BuildServerBuilder.() -> Unit): BuildServerConfig 
  *
  * The returned [BuildServer] is fully wired: incoming transport data is
  * decoded and dispatched, and outgoing messages are forwarded to the transport.
+ * The supplied scope and transport remain caller-owned; closing a session does not close the transport.
  */
 public suspend fun BuildServerConfig.start(
     transport: Transport,
@@ -649,21 +661,14 @@ public suspend fun BuildServerConfig.start(
 ): BuildServer {
     requestHandlers.keys.forEach { requireNotReserved(it, reservedRequests) }
     notificationHandlers.keys.forEach { requireNotReserved(it, reservedNotifications) }
-    val connection = Connection(scope = scope)
-    val server = BuildServer(this, connection, scope)
-    server.setup()
-
-    scope.launch {
-        transport.incoming.collect { data ->
-            connection.receive(data)
-        }
+    val lifecycle = SessionLifecycle(scope)
+    val server = BuildServer(this, lifecycle.connection, lifecycle)
+    try {
+        server.setup()
+        lifecycle.start(transport)
+    } catch (failure: Throwable) {
+        lifecycle.fail(failure)
+        throw failure
     }
-
-    scope.launch {
-        connection.outgoing.collect { data ->
-            transport.send(data)
-        }
-    }
-
     return server
 }

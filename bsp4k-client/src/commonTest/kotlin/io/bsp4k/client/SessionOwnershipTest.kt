@@ -1,17 +1,32 @@
 package io.bsp4k.client
 
+import io.jsonrpc4k.core.JsonRpcCodec
+import io.jsonrpc4k.core.JsonRpcException
+import io.jsonrpc4k.core.JsonRpcMessageDecoder
+import io.jsonrpc4k.core.NotificationMessage
+import io.jsonrpc4k.core.RequestMessage
+import io.jsonrpc4k.core.ResponseError
+import io.jsonrpc4k.core.ResponseMessage
 import io.jsonrpc4k.transport.Transport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -21,6 +36,7 @@ class SessionOwnershipTest {
     fun `close stops the idle reader without canceling the supplied scope or transport`() =
         runTest {
             val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val sibling = Job(parent)
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = IdleTransport()
             val session = buildClient {}.start(transport, scope)
@@ -30,7 +46,170 @@ class SessionOwnershipTest {
             runCurrent()
 
             assertTrue(parent.isActive)
+            assertTrue(sibling.isActive)
             assertTrue(transport.readerStopped.isCompleted)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `canceling the parent stops its session reader`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = IdleTransport()
+            val session = buildClient {}.start(transport, scope)
+            runCurrent()
+            parent.cancel()
+            runCurrent()
+            assertTrue(transport.readerStopped.isCompleted)
+            withTimeout(5_000) { session.awaitTermination() }
+            assertFalse(transport.closed)
+        }
+
+    @Test
+    fun `already canceled parent returns a terminated session`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            parent.cancel()
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = IdleTransport()
+            val session = buildClient {}.start(transport, scope)
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertFalse(transport.closed)
+        }
+
+    @Test
+    fun `canceling a termination waiter does not change the shared result`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val session = buildClient {}.start(IdleTransport(), scope)
+            val waiter = async { withTimeout(5_000) { session.awaitTermination() } }
+            runCurrent()
+            waiter.cancelAndJoin()
+            session.close()
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            parent.cancel()
+        }
+
+    @Test
+    fun `EOF stops pending requests and preserves the borrowed scope`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val sibling = Job(parent)
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = ScriptedTransport()
+            val session = buildClient {}.start(transport, scope)
+            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            runCurrent()
+            transport.messages.close()
+            runCurrent()
+
+            assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertTrue(sibling.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `send failure terminates pending request and exposes the original cause`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val sibling = Job(parent)
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val failure = IllegalStateException("send failure")
+            val transport = ScriptedTransport(failure = failure)
+            val session = buildClient {}.start(transport, scope)
+            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            runCurrent()
+
+            assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
+            val terminal = withTimeout(5_000) { session.awaitTermination() }
+            assertTrue(terminal is IllegalStateException)
+            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            session.close()
+            assertEquals(terminal, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertTrue(sibling.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `transport cancellation failure terminates session without canceling parent`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val failure = CancellationException("transport stopped")
+            val transport = ScriptedTransport(failure = failure)
+            val session = buildClient {}.start(transport, scope)
+            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            runCurrent()
+            assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
+            val terminal = withTimeout(5_000) { session.awaitTermination() }
+            assertTrue(terminal is CancellationException)
+            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(parent.isActive)
+            parent.cancel()
+        }
+
+    @Test
+    fun `canceling blocked shutdown stops session without closing borrowed transport`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = ScriptedTransport()
+            val session = buildClient {}.start(transport, scope)
+            val shutdown = async { session.shutdown() }
+            runCurrent()
+            assertTrue(transport.exitStarted.isCompleted)
+            shutdown.cancelAndJoin()
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `shutdown RPC failure reaches caller while termination is normal`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = ScriptedTransport(shutdownError = ResponseError(-32001, "shutdown rejected"))
+            val session = buildClient {}.start(transport, scope)
+            val error = assertFailsWith<JsonRpcException> { withTimeout(5_000) { session.shutdown() } }
+            assertEquals(-32001, error.code)
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertFalse(transport.exitStarted.isCompleted)
+            assertTrue(parent.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `shutdown awaits exit write before closing its session`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val sibling = Job(parent)
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            val transport = ScriptedTransport()
+            val session = buildClient {}.start(transport, scope)
+            val shutdown = async { session.shutdown() }
+            runCurrent()
+
+            assertTrue(transport.exitStarted.isCompleted)
+            assertFalse(shutdown.isCompleted)
+            assertFailsWith<IllegalStateException> { session.shutdown() }
+            transport.releaseExit.complete(Unit)
+            withTimeout(5_000) { shutdown.await() }
+            assertTrue(transport.exitSent)
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertTrue(sibling.isActive)
             assertFalse(transport.closed)
             parent.cancel()
         }
@@ -50,6 +229,43 @@ private class IdleTransport : Transport {
         }
 
     override suspend fun send(data: ByteArray) = Unit
+
+    override suspend fun close() {
+        closed = true
+    }
+}
+
+private class ScriptedTransport(
+    private val failure: Throwable? = null,
+    private val shutdownError: ResponseError? = null,
+) : Transport {
+    val messages = Channel<ByteArray>(Channel.UNLIMITED)
+    val exitStarted = CompletableDeferred<Unit>()
+    val releaseExit = CompletableDeferred<Unit>()
+    var exitSent = false
+    var closed = false
+    override val isConnected: Boolean = true
+    override val incoming: Flow<ByteArray> = messages.receiveAsFlow()
+
+    override suspend fun send(data: ByteArray) {
+        failure?.let { throw it }
+        when (val message = JsonRpcMessageDecoder().feed(data).single()) {
+            is RequestMessage ->
+                if (message.method == "build/shutdown") {
+                    val response =
+                        shutdownError?.let { ResponseMessage.error(message.id, it) }
+                            ?: ResponseMessage.success(message.id, null)
+                    messages.send(JsonRpcCodec.Default.encode(response))
+                }
+            is NotificationMessage ->
+                if (message.method == "build/exit") {
+                    exitStarted.complete(Unit)
+                    releaseExit.await()
+                    exitSent = true
+                }
+            else -> Unit
+        }
+    }
 
     override suspend fun close() {
         closed = true
