@@ -89,6 +89,25 @@ public data class BuildServerConfig(
     val notificationHandlers: Map<String, NotificationHandler>,
 )
 
+private val reservedRequests = setOf(BspMethods.BUILD_INITIALIZE, BspMethods.BUILD_SHUTDOWN)
+private val reservedNotifications = setOf(BspMethods.BUILD_INITIALIZED, BspMethods.BUILD_EXIT, "$/cancelRequest")
+
+private fun requireNotReserved(
+    method: String,
+    reserved: Set<String>,
+) {
+    require(method !in reserved) { "Cannot register a handler for reserved method: $method" }
+}
+
+@PublishedApi
+internal fun <H> MutableMap<String, H>.putUniqueHandler(
+    method: String,
+    handler: H,
+) {
+    require(method !in this) { "Handler already registered for method: $method" }
+    this[method] = handler
+}
+
 /**
  * Top-level builder for assembling a [BuildServerConfig] via the [buildServer] DSL.
  */
@@ -149,7 +168,8 @@ public class BuildServerBuilder {
         method: String,
         handler: RequestHandler,
     ) {
-        requestHandlers[method] = handler
+        requireNotReserved(method, reservedRequests)
+        requestHandlers.putUniqueHandler(method, handler)
     }
 
     /**
@@ -159,7 +179,8 @@ public class BuildServerBuilder {
         method: String,
         handler: NotificationHandler,
     ) {
-        notificationHandlers[method] = handler
+        requireNotReserved(method, reservedNotifications)
+        notificationHandlers.putUniqueHandler(method, handler)
     }
 
     internal fun build(): BuildServerConfig =
@@ -266,14 +287,16 @@ public abstract class HandlersBuilder internal constructor(
     ) {
         val paramSerializer = serializer<P>()
         val resultSerializer = serializer<R>()
-        requestHandlers[method] =
+        requestHandlers.putUniqueHandler(
+            method,
             RequestHandler { params ->
                 val typedParams: P =
                     params?.let { json.decodeFromJsonElement(paramSerializer, it) }
                         ?: throw JsonRpcException.invalidParams("Missing params for $method")
                 val result = handler(typedParams)
                 result?.let { json.encodeToJsonElement(resultSerializer, it) }
-            }
+            },
+        )
     }
 
     /**
@@ -285,11 +308,13 @@ public abstract class HandlersBuilder internal constructor(
         crossinline handler: suspend () -> R?,
     ) {
         val resultSerializer = serializer<R>()
-        requestHandlers[method] =
+        requestHandlers.putUniqueHandler(
+            method,
             RequestHandler { _ ->
                 val result = handler()
                 result?.let { json.encodeToJsonElement(resultSerializer, it) }
-            }
+            },
+        )
     }
 }
 
@@ -378,11 +403,13 @@ public class WorkspaceHandlersBuilder(
 
     /** Registers a handler for `workspace/reload` requests. */
     public fun reload(handler: suspend () -> Unit) {
-        requestHandlers[BspMethods.WORKSPACE_RELOAD] =
+        requestHandlers.putUniqueHandler(
+            BspMethods.WORKSPACE_RELOAD,
             RequestHandler { _ ->
                 handler()
                 null
-            }
+            },
+        )
     }
 }
 
@@ -620,6 +647,8 @@ public suspend fun BuildServerConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
 ): BuildServer {
+    requestHandlers.keys.forEach { requireNotReserved(it, reservedRequests) }
+    notificationHandlers.keys.forEach { requireNotReserved(it, reservedNotifications) }
     val connection = Connection(scope = scope)
     val server = BuildServer(this, connection, scope)
     server.setup()
