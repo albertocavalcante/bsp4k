@@ -118,7 +118,7 @@ for library in expected_api:
 PY
 
 BSP_FIXTURE_FORM=root JAVA_HOME="$JAVA_HOME_17_X64" PATH="$JAVA_HOME_17_X64/bin:$PATH" \
-	./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1536m -p "$root_consumer" \
+	./gradlew --no-daemon --max-workers=2 --info -Dorg.gradle.jvmargs=-Xmx1536m -p "$root_consumer" \
 	run verifyJava16Rejected
 BSP_FIXTURE_FORM=jvm JAVA_HOME="$JAVA_HOME_17_X64" PATH="$JAVA_HOME_17_X64/bin:$PATH" \
-	./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1536m -p "$jvm_consumer" run
+	./gradlew --no-daemon --max-workers=2 --info -Dorg.gradle.jvmargs=-Xmx1536m -p "$jvm_consumer" run

@@ -36,7 +36,10 @@ dependencies {
     }
 }
 
-application { mainClass = "MainKt" }
+application {
+    mainClass = "MainKt"
+    applicationDefaultJvmArgs = listOf("-Xmx256m")
+}
 
 tasks.register("verifyJava16Rejected") {
     doLast {
