@@ -17,7 +17,7 @@ concurrency:
 env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'temurin'
-  JSONRPC4K_REV: '60d8e31e045ddb8dae2541b94f3d31c5731f15bb'
+  JSONRPC4K_REV: '9b3d923decca248c8467d7b074a1a0ae2cb773ed'
 
 defaults:
   run:
