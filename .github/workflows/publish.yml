@@ -8,22 +8,30 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'temurin'
+  JSONRPC4K_REV: '60d8e31e045ddb8dae2541b94f3d31c5731f15bb'
+
+defaults:
+  run:
+    working-directory: bsp4k
 
 jobs:
   publish:
     name: Publish
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          path: bsp4k
           fetch-depth: 1
           persist-credentials: false
 
@@ -31,7 +39,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: albertocavalcante/jsonrpc4k
-          path: ../jsonrpc4k
+          ref: ${{ env.JSONRPC4K_REV }}
+          path: jsonrpc4k
           fetch-depth: 1
           persist-credentials: false
 
