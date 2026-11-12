@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: bsp4k-publication
+  cancel-in-progress: false
+
 env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'temurin'
@@ -53,18 +57,26 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
 
-      - name: Check tagged publication version
+      - name: Select tagged publication version
+        id: version
         if: github.event_name == 'push'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
-          if [[ -z "$version" || "$version" != "${RELEASE_TAG#v}" || "$version" == *-SNAPSHOT ]]; then
-            echo "::error::Release tag must match a non-snapshot VERSION_NAME."
+          version="${RELEASE_TAG#v}"
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9][0-9A-Za-z.+-]*$ || "$version" == *-SNAPSHOT ]]; then
+            echo "::error::Publication requires a non-snapshot version tag."
             exit 1
           fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
       - name: Publish
-        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
+        run: |
+          publication_args=()
+          if [[ -n "$RELEASE_VERSION" ]]; then
+            publication_args+=("-PVERSION_NAME=$RELEASE_VERSION")
+          fi
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository "${publication_args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
