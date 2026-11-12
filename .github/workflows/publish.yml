@@ -80,9 +80,10 @@ jobs:
             publication_args+=("-PVERSION_NAME=$RELEASE_VERSION")
           fi
           ./gradlew publishAllPublicationsToPreflightRepository --refresh-dependencies \
-            -Pbsp4k.useLocalJsonrpc4k=false \
+            -Pbsp4k.useLocalJsonrpc4k=false -Pjsonrpc4k.repository=github \
             --init-script tools/ci/publication-preflight.init.gradle.kts "${publication_args[@]}"
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Publish
@@ -91,7 +92,7 @@ jobs:
           if [[ -n "$RELEASE_VERSION" ]]; then
             publication_args+=("-PVERSION_NAME=$RELEASE_VERSION")
           fi
-          ./gradlew publishAllPublicationsToGitHubPackagesRepository -Pbsp4k.useLocalJsonrpc4k=false "${publication_args[@]}"
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository -Pbsp4k.useLocalJsonrpc4k=false -Pjsonrpc4k.repository=github "${publication_args[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}

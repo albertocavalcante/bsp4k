@@ -6,6 +6,9 @@ set -euo pipefail
 : "${GITHUB_RUN_ATTEMPT:?A unique run attempt is required}"
 : "${JAVA_HOME_17_X64:?JDK 17 is required}"
 
+tools/ci/check-publish-workflow.sh
+tools/ci/registry-routing.sh
+
 export BSP_FIXTURE_VERSION="0.0.0-java17-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 fixture_root=$(mktemp -d "$RUNNER_TEMP/bsp4k-java17.XXXXXXXX")
 trap 'rm -rf "$fixture_root"' EXIT
@@ -41,9 +44,9 @@ fi
 	:jsonrpc4k-transport:publishAllPublicationsToFixtureRepository
 
 # The identical preflight succeeds once pinned JSON-RPC binaries are independently resolvable.
-./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1536m \
-	-PVERSION_NAME="$BSP_FIXTURE_VERSION" -Pbsp4k.useLocalJsonrpc4k=false \
-	--init-script tools/ci/java17-consumer/publish.init.gradle.kts \
+env -u GITHUB_TOKEN -u GITHUB_ACTOR ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1536m \
+	-PVERSION_NAME="$BSP_FIXTURE_VERSION" -Pgpr.user= -Pgpr.key= -Pbsp4k.useLocalJsonrpc4k=false -Pjsonrpc4k.repository=github \
+	--init-script tools/ci/registry-routing/redirect.init.gradle.kts \
 	--init-script tools/ci/publication-preflight.init.gradle.kts \
 	publishAllPublicationsToPreflightRepository --refresh-dependencies
 
