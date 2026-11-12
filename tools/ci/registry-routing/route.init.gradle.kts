@@ -21,29 +21,38 @@ settingsEvaluated {
 
 gradle.rootProject {
     if (name != "bsp4k") return@rootProject
+    val group = "io.github.albertocavalcante"
+    val modules =
+        listOf(
+            "jsonrpc4k-core",
+            "jsonrpc4k-core-jvm",
+            "jsonrpc4k-core-js",
+            "jsonrpc4k-core-linuxx64",
+            "jsonrpc4k-transport",
+            "jsonrpc4k-transport-jvm",
+            "jsonrpc4k-transport-macosarm64",
+            "bsp4k-route-canary",
+            "jsonrpc4k-coreevil",
+        )
+
+    fun files(
+        module: String,
+        version: String,
+    ) = configurations
+        .detachedConfiguration(dependencies.create("$group:$module:$version"))
+        .incoming
+        .artifactView {}
+        .files
+    val artifacts = modules.associateWith { files(it, "1.0") }
+    val missing = files("jsonrpc4k-core", "2.0")
     tasks.register("verifyRegistryRoute") {
         doLast {
-            val group = "io.github.albertocavalcante"
-
-            fun resolve(
-                module: String,
-                version: String,
-            ) = configurations.detachedConfiguration(dependencies.create("$group:$module:$version")).singleFile.readText()
-            for (module in listOf(
-                "jsonrpc4k-core",
-                "jsonrpc4k-core-jvm",
-                "jsonrpc4k-core-js",
-                "jsonrpc4k-core-linuxx64",
-                "jsonrpc4k-transport",
-                "jsonrpc4k-transport-jvm",
-                "jsonrpc4k-transport-macosarm64",
-            )) {
-                check(resolve(module, "1.0") == "primary:$module") { "Wrong repository for $module" }
+            for ((module, artifact) in artifacts) {
+                val expected = if (module == "bsp4k-route-canary" || module == "jsonrpc4k-coreevil") "fallback" else "primary"
+                check(artifact.singleFile.readText() == "$expected:$module") { "Wrong repository for $module" }
             }
-            check(resolve("bsp4k-route-canary", "1.0") == "fallback:bsp4k-route-canary")
-            check(resolve("jsonrpc4k-coreevil", "1.0") == "fallback:jsonrpc4k-coreevil")
             val failure =
-                runCatching { resolve("jsonrpc4k-core", "2.0") }.exceptionOrNull()
+                runCatching { missing.singleFile }.exceptionOrNull()
                     ?: error("Missing JSON-RPC artifact incorrectly resolved from fallback")
             check("Could not find $group:jsonrpc4k-core:2.0." in failure.stackTraceToString()) {
                 "Resolution failed for an unrelated reason: $failure"
