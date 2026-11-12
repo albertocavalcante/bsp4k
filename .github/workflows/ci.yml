@@ -157,3 +157,41 @@ jobs:
 
       - name: Spotless Check
         run: ./gradlew spotlessCheck
+
+  java17-consumer:
+    name: Published Java 17 BSP consumer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout BSP4K
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: bsp4k
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout JSON-RPC foundation
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: albertocavalcante/jsonrpc4k
+          ref: ${{ env.JSONRPC4K_REV }}
+          path: jsonrpc4k
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Java 17 runtime
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '17'
+          distribution: temurin
+      - name: Set up Java 21 for Gradle
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
+        with:
+          cache-read-only: true
+      - name: Verify isolated published artifacts
+        run: tools/ci/java17-consumer.sh
