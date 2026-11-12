@@ -53,6 +53,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
 
+      - name: Check tagged publication version
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
+          if [[ -z "$version" || "$version" != "${RELEASE_TAG#v}" || "$version" == *-SNAPSHOT ]]; then
+            echo "::error::Release tag must match a non-snapshot VERSION_NAME."
+            exit 1
+          fi
+
       - name: Publish
         run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
         env:
