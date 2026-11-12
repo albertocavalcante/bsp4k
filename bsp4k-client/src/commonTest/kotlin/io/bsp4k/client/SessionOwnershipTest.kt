@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -130,7 +131,7 @@ class SessionOwnershipTest {
             assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
             val terminal = withTimeout(5_000) { session.awaitTermination() }
             assertTrue(terminal is IllegalStateException)
-            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
             session.close()
             assertEquals(terminal, withTimeout(5_000) { session.awaitTermination() })
             assertTrue(parent.isActive)
@@ -152,7 +153,7 @@ class SessionOwnershipTest {
             assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
             val terminal = withTimeout(5_000) { session.awaitTermination() }
             assertTrue(terminal is CancellationException)
-            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
             assertTrue(parent.isActive)
             parent.cancel()
         }
@@ -169,6 +170,26 @@ class SessionOwnershipTest {
             assertTrue(transport.exitStarted.isCompleted)
             shutdown.cancelAndJoin()
             assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `exit send failure during shutdown retains transport cause`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler) + parent)
+            val failure = IllegalStateException("exit send failed")
+            val transport = ScriptedTransport(exitFailure = failure)
+            val session = buildClient {}.start(transport, scope)
+            val shutdown = async { runCatching { session.shutdown() } }
+            runCurrent()
+            assertTrue(transport.exitStarted.isCompleted)
+            transport.releaseExit.complete(Unit)
+            assertTrue(withTimeout(5_000) { shutdown.await() }.isFailure)
+            val terminal = withTimeout(5_000) { session.awaitTermination() }
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
             assertTrue(parent.isActive)
             assertFalse(transport.closed)
             parent.cancel()
@@ -238,6 +259,7 @@ private class IdleTransport : Transport {
 private class ScriptedTransport(
     private val failure: Throwable? = null,
     private val shutdownError: ResponseError? = null,
+    private val exitFailure: Throwable? = null,
 ) : Transport {
     val messages = Channel<ByteArray>(Channel.UNLIMITED)
     val exitStarted = CompletableDeferred<Unit>()

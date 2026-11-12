@@ -524,7 +524,7 @@ public class BuildServer internal constructor(
     }
 
     /** Stops immediately, canceling pending work and discarding unsent frames; the transport remains caller-owned. */
-    public fun close() = lifecycle.close()
+    public fun close(): Unit = lifecycle.close()
 
     /**
      * Waits for session jobs to stop. Returns the first read or write failure, or null on EOF,

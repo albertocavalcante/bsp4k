@@ -17,6 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -109,7 +110,7 @@ class SessionOwnershipTest {
             val server = buildServer {}.start(transport, scope)
             val terminal = withTimeout(5_000) { server.awaitTermination() }
             assertTrue(terminal is CancellationException)
-            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
             assertTrue(parent.isActive)
             parent.cancel()
         }
@@ -156,10 +157,31 @@ class SessionOwnershipTest {
             messages.send(JsonRpcCodec.Default.encode(RequestMessage(RequestId.of(8), "build/shutdown")))
             val terminal = withTimeout(5_000) { server.awaitTermination() }
             assertTrue(terminal is IllegalStateException)
-            assertTrue(generateSequence(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
             assertTrue(parent.isActive)
             assertTrue(sibling.isActive)
             assertFalse(closed)
+            parent.cancel()
+        }
+
+    @Test
+    fun `pipelined exit retains response send failure while flushing`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler) + parent)
+            val failure = IllegalStateException("shutdown response send failed")
+            val transport = ExitTransport(failure)
+            val server = buildServer {}.start(transport, scope)
+            val shutdown = JsonRpcCodec.Default.encode(RequestMessage(RequestId.of(9), "build/shutdown"))
+            val exit = JsonRpcCodec.Default.encode(NotificationMessage("build/exit"))
+            transport.messages.send(shutdown + exit)
+            runCurrent()
+            assertTrue(transport.sendStarted.isCompleted)
+            transport.releaseSend.complete(Unit)
+            val terminal = withTimeout(5_000) { server.awaitTermination() }
+            assertTrue(generateSequence<Throwable>(terminal) { it.cause }.take(8).any { it === failure })
+            assertTrue(parent.isActive)
+            assertFalse(transport.closed)
             parent.cancel()
         }
 
@@ -191,7 +213,9 @@ class SessionOwnershipTest {
         }
 }
 
-private class ExitTransport : Transport {
+private class ExitTransport(
+    private val failure: Throwable? = null,
+) : Transport {
     val messages = Channel<ByteArray>(Channel.UNLIMITED)
     val readerStopped = CompletableDeferred<Unit>()
     val sendStarted = CompletableDeferred<Unit>()
@@ -211,6 +235,7 @@ private class ExitTransport : Transport {
     override suspend fun send(data: ByteArray) {
         sendStarted.complete(Unit)
         releaseSend.await()
+        failure?.let { throw it }
         sent.add(data)
     }
 
