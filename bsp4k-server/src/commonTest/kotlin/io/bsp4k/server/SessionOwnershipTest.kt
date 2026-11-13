@@ -5,6 +5,7 @@ import io.jsonrpc4k.core.JsonRpcMessageDecoder
 import io.jsonrpc4k.core.NotificationMessage
 import io.jsonrpc4k.core.RequestId
 import io.jsonrpc4k.core.RequestMessage
+import io.jsonrpc4k.core.ResponseError
 import io.jsonrpc4k.core.ResponseMessage
 import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CancellationException
@@ -205,7 +206,8 @@ class SessionOwnershipTest {
             assertEquals(null, withTimeout(5_000) { terminal.await() })
             val response = JsonRpcMessageDecoder().feed(transport.sent.single()).single() as ResponseMessage
             assertEquals(RequestId.of(7), response.id)
-            assertEquals(null, response.error)
+            // Shutdown before initialize is refused, and exit must still flush that answer before closing.
+            assertEquals(ResponseError.SERVER_NOT_INITIALIZED, response.error?.code)
             assertTrue(parent.isActive)
             assertTrue(sibling.isActive)
             assertFalse(transport.closed)
