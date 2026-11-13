@@ -145,8 +145,8 @@ class BuildServerBuilderTest {
         config.capabilities.testProvider.shouldBeNull()
         config.capabilities.runProvider.shouldBeNull()
         config.capabilities.debugProvider.shouldBeNull()
-        config.capabilities.inverseSourcesProvider.shouldBeNull()
-        config.capabilities.canReload.shouldBeNull()
+        config.capabilities.inverseSourcesProvider shouldBe false
+        config.capabilities.canReload shouldBe false
     }
 
     @Test

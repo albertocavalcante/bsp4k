@@ -7,8 +7,11 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 public data class TestParams(
     val targets: List<BuildTargetIdentifier>,
+    val destination: DestinationIdentifier? = null,
     val originId: String? = null,
     val arguments: List<String>? = null,
+    val environmentVariables: Map<String, String>? = null,
+    val workingDirectory: URI? = null,
     override val dataKind: String? = null,
     override val data: JsonElement? = null,
 ) : BspDataCarrier

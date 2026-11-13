@@ -215,35 +215,41 @@ public class BuildServerCapabilitiesBuilder {
     /** Provider for debug requests. */
     public var debugProvider: DebugProvider? = null
 
+    /** Whether the server supports `buildTarget/destinations`. */
+    public var buildTargetDestinationsProvider: Boolean = false
+
     /** Whether the server supports inverse sources. */
-    public var inverseSourcesProvider: Boolean? = null
+    public var inverseSourcesProvider: Boolean = false
 
     /** Whether the server supports dependency sources. */
-    public var dependencySourcesProvider: Boolean? = null
+    public var dependencySourcesProvider: Boolean = false
 
     /** Whether the server supports dependency modules. */
-    public var dependencyModulesProvider: Boolean? = null
+    public var dependencyModulesProvider: Boolean = false
 
     /** Whether the server supports resources. */
-    public var resourcesProvider: Boolean? = null
+    public var resourcesProvider: Boolean = false
 
     /** Whether the server supports output paths. */
-    public var outputPathsProvider: Boolean? = null
+    public var outputPathsProvider: Boolean = false
 
     /** Whether the server supports build target changed notifications. */
-    public var buildTargetChangedProvider: Boolean? = null
+    public var buildTargetChangedProvider: Boolean = false
 
     /** Whether the server supports JVM run environment. */
-    public var jvmRunEnvironmentProvider: Boolean? = null
+    public var jvmRunEnvironmentProvider: Boolean = false
 
     /** Whether the server supports JVM test environment. */
-    public var jvmTestEnvironmentProvider: Boolean? = null
+    public var jvmTestEnvironmentProvider: Boolean = false
 
-    /** Whether the server supports JVM compile classpath. */
-    public var jvmCompileClasspathProvider: Boolean? = null
+    /** Whether the server supports the Cargo features extension. */
+    public var cargoFeaturesProvider: Boolean = false
 
     /** Whether the server supports reload. */
-    public var canReload: Boolean? = null
+    public var canReload: Boolean = false
+
+    /** Whether the server supports JVM compile classpath. */
+    public var jvmCompileClasspathProvider: Boolean = false
 
     internal fun build(): BuildServerCapabilities =
         BuildServerCapabilities(
@@ -251,6 +257,7 @@ public class BuildServerCapabilitiesBuilder {
             testProvider = testProvider,
             runProvider = runProvider,
             debugProvider = debugProvider,
+            buildTargetDestinationsProvider = buildTargetDestinationsProvider,
             inverseSourcesProvider = inverseSourcesProvider,
             dependencySourcesProvider = dependencySourcesProvider,
             dependencyModulesProvider = dependencyModulesProvider,
@@ -259,8 +266,9 @@ public class BuildServerCapabilitiesBuilder {
             buildTargetChangedProvider = buildTargetChangedProvider,
             jvmRunEnvironmentProvider = jvmRunEnvironmentProvider,
             jvmTestEnvironmentProvider = jvmTestEnvironmentProvider,
-            jvmCompileClasspathProvider = jvmCompileClasspathProvider,
+            cargoFeaturesProvider = cargoFeaturesProvider,
             canReload = canReload,
+            jvmCompileClasspathProvider = jvmCompileClasspathProvider,
         )
 }
 
