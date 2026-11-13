@@ -68,8 +68,7 @@ internal class TestClient(
     }
 
     /** Waits for the response to request [id]. */
-    suspend fun response(id: RequestId): ResponseMessage =
-        awaitMessage { it is ResponseMessage && it.id == id } as ResponseMessage
+    suspend fun response(id: RequestId): ResponseMessage = awaitMessage { it is ResponseMessage && it.id == id } as ResponseMessage
 
     /** Sends a notification. In an unbounded session a later [request] is processed after it. */
     suspend fun notify(

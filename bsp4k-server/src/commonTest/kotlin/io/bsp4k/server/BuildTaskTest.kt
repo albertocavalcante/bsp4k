@@ -56,11 +56,9 @@ class BuildTaskTest {
         return testJson.decodeFromJsonElement(serializer, assertNotNull(notification.params))
     }
 
-    private suspend fun TestClient.nextStart(): TaskStartParams =
-        next(BspMethods.BUILD_TASK_START, TaskStartParams.serializer())
+    private suspend fun TestClient.nextStart(): TaskStartParams = next(BspMethods.BUILD_TASK_START, TaskStartParams.serializer())
 
-    private suspend fun TestClient.nextFinish(): TaskFinishParams =
-        next(BspMethods.BUILD_TASK_FINISH, TaskFinishParams.serializer())
+    private suspend fun TestClient.nextFinish(): TaskFinishParams = next(BspMethods.BUILD_TASK_FINISH, TaskFinishParams.serializer())
 
     @Test
     fun `a compile handler reports a typed task that echoes its origin`() =
@@ -90,7 +88,7 @@ class BuildTaskTest {
 
             assertEquals(encode(CompileResult.serializer(), CompileResult("o-1", StatusCode.Ok)), response.result)
             val start = peer.nextStart()
-            assertEquals(TaskId("compile-1", parents = listOf("o-1")), start.taskId)
+            assertEquals(TaskId("compile-1"), start.taskId)
             assertEquals("o-1", start.originId)
             assertEquals("Compiling", start.message)
             assertEquals(CompileTask(target), start.decodeData(TaskStartDataKind.compileTask))

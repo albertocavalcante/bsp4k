@@ -187,6 +187,18 @@ class BuildServerBuilderTest {
     }
 
     @Test
+    fun `cargo provider needs both cargo handlers`() {
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                buildServer {
+                    capabilities { cargoFeaturesProvider = true }
+                    cargo { featuresState { error("stub") } }
+                }
+            }
+        failure.message.orEmpty() shouldContain "cargoFeaturesProvider is declared but workspace/setCargoFeatures has no handler"
+    }
+
+    @Test
     fun `a copied config is validated too`() {
         val config = buildServer { buildTarget { sources { error("stub") } } }
         val inconsistent = BuildServerCapabilities(resourcesProvider = true)

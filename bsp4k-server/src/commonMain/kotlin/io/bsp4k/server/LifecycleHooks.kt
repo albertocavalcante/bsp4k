@@ -18,7 +18,7 @@ public typealias LifecycleHook = suspend BuildServerContext.() -> Unit
 /**
  * Runs for `build/exit` with the process exit code BSP asks for: 0 when `build/shutdown` came first,
  * otherwise 1. It runs after queued messages were flushed and before the session closes, so it may end
- * the process; anything it sends may be discarded.
+ * the process; whatever it sends is flushed once more after it returns.
  */
 public typealias ExitHook = suspend BuildServerContext.(exitCode: Int) -> Unit
 
@@ -27,7 +27,8 @@ public typealias ExitHook = suspend BuildServerContext.(exitCode: Int) -> Unit
  *
  * @property onInitialize Runs for `build/initialize`; see [InitializeHook].
  * @property onInitialized Runs once for the first `build/initialized`, before later messages are
- *   dispatched; launch long work, such as dependency resolution, in your own scope. A failure is dropped
+ *   dispatched. The state is already Running while it executes, so a request that
+ *   arrives meanwhile is served concurrently; launch long work, such as dependency resolution, in your own scope. A failure is dropped
  *   because notifications have no response.
  * @property onShutdown Runs for an accepted `build/shutdown`, before the server answers; throwing turns the
  *   answer into an error, and the server still refuses later requests.

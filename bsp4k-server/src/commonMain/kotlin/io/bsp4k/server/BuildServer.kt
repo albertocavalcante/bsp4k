@@ -135,10 +135,11 @@ public class BuildServer internal constructor(
         if (previous == BuildServerState.Exited) return
         try {
             lifecycle.flushOutgoing()
+            val exitCode = if (previous == BuildServerState.ShutdownRequested) 0 else 1
+            config.lifecycleHooks.onExit?.invoke(context, exitCode)
         } finally {
             try {
-                val exitCode = if (previous == BuildServerState.ShutdownRequested) 0 else 1
-                config.lifecycleHooks.onExit?.invoke(context, exitCode)
+                lifecycle.flushOutgoing()
             } finally {
                 lifecycle.close()
             }

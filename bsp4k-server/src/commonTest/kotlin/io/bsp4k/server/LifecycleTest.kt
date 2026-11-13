@@ -208,6 +208,23 @@ class LifecycleTest {
         }
 
     @Test
+    fun `messages sent by the exit hook are delivered`() =
+        runTest {
+            val (server, peer) =
+                recordingServer {
+                    lifecycle { onExit { client.logMessage(MessageType.Info, "bye") } }
+                }.connect(backgroundScope)
+            peer.handshake()
+            assertNullResult(peer.request(BspMethods.BUILD_SHUTDOWN))
+
+            peer.notify(BspMethods.BUILD_EXIT)
+
+            assertNull(withTimeout(5_000) { server.awaitTermination() })
+            val bye = peer.notification()
+            assertEquals(BspMethods.BUILD_LOG_MESSAGE, bye.method)
+        }
+
+    @Test
     fun `exit without shutdown reports exit code 1`() =
         runTest {
             val exitCodes = mutableListOf<Int>()
