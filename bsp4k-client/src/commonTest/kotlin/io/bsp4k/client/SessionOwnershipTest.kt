@@ -255,6 +255,26 @@ class SessionOwnershipTest {
             assertFalse(transport.closed)
             parent.cancel()
         }
+
+    @Test
+    fun `peer EOF after exit frame ends shutdown normally before the exit write returns`() =
+        runTest {
+            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
+            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
+            // The peer closes its side on reading exit while the writer's exit send is still held.
+            val transport = ScriptedTransport(closeOnExit = true)
+            val session = buildClient {}.start(transport, scope)
+            val shutdown = async { runCatching { session.shutdown() } }
+            runCurrent()
+
+            assertTrue(transport.exitStarted.isCompleted)
+            assertEquals(null, withTimeout(5_000) { shutdown.await() }.exceptionOrNull())
+            assertFalse(transport.exitSent)
+            assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
+            assertTrue(parent.isActive)
+            assertFalse(transport.closed)
+            parent.cancel()
+        }
 }
 
 private class IdleTransport : Transport {
@@ -281,6 +301,7 @@ private class ScriptedTransport(
     private val failure: Throwable? = null,
     private val shutdownError: ResponseError? = null,
     private val exitFailure: Throwable? = null,
+    private val closeOnExit: Boolean = false,
 ) : Transport {
     val messages = Channel<ByteArray>(Channel.UNLIMITED)
     val exitStarted = CompletableDeferred<Unit>()
@@ -303,6 +324,7 @@ private class ScriptedTransport(
             is NotificationMessage ->
                 if (message.method == "build/exit") {
                     exitStarted.complete(Unit)
+                    if (closeOnExit) messages.close()
                     releaseExit.await()
                     exitFailure?.let { throw it }
                     exitSent = true

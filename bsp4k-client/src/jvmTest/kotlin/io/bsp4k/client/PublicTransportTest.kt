@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.runBlocking
@@ -53,7 +54,8 @@ class PublicTransportTest {
                             servePeer(socket.getInputStream(), socket.getOutputStream())
                         }
                     }
-                val transport = ObservedTransport(SocketTransport.connect("127.0.0.1", listener.localPort))
+                // Pin the interleaving that flaked in CI: the peer's EOF ends the session before the exit write returns.
+                val transport = ObservedTransport(SocketTransport.connect("127.0.0.1", listener.localPort), holdExitSend = true)
                 var started: BuildClientSession? = null
                 try {
                     val session = buildClient { rootUri("file:///fixture") }.start(transport, scope)
@@ -391,13 +393,18 @@ class PublicTransportTest {
 
 private class ObservedTransport(
     private val delegate: Transport,
+    private val holdExitSend: Boolean = false,
 ) : Transport {
     val closeCalls = AtomicInteger()
     val readerFinished = CompletableDeferred<Unit>()
     override val incoming: Flow<ByteArray> = delegate.incoming.onCompletion { readerFinished.complete(Unit) }
     override val isConnected: Boolean get() = delegate.isConnected
 
-    override suspend fun send(data: ByteArray) = delegate.send(data)
+    override suspend fun send(data: ByteArray) {
+        delegate.send(data)
+        // The exit frame is on the wire, but this send returns only when session teardown cancels it.
+        if (holdExitSend && data.decodeToString().contains("\"method\":\"build/exit\"")) awaitCancellation()
+    }
 
     override suspend fun close() {
         closeCalls.incrementAndGet()
