@@ -9,8 +9,13 @@ import io.bsp4k.protocol.CompileProvider
 import io.bsp4k.protocol.CompileReport
 import io.bsp4k.protocol.CompileResult
 import io.bsp4k.protocol.CompileTask
+import io.bsp4k.protocol.Destination
+import io.bsp4k.protocol.DestinationIdentifier
+import io.bsp4k.protocol.DestinationsResult
 import io.bsp4k.protocol.Diagnostic
 import io.bsp4k.protocol.DiagnosticSeverity
+import io.bsp4k.protocol.JvmEnvironmentItem
+import io.bsp4k.protocol.JvmEnvironmentResult
 import io.bsp4k.protocol.MessageType
 import io.bsp4k.protocol.Position
 import io.bsp4k.protocol.PublishDiagnosticsParams
@@ -51,6 +56,8 @@ import kotlin.system.exitProcess
  * - Workspace target discovery and source listing
  * - Compile and test reported as typed tasks that echo the request's originId
  * - Run output forwarded with `run/printStdout`
+ * - Destinations, selected by the client in `buildTarget/run`
+ * - The JVM extension: `buildTarget/jvmRunEnvironment`
  * - Clean cache and reload
  *
  * Run via: `./gradlew :example:run`
@@ -58,6 +65,7 @@ import kotlin.system.exitProcess
 
 private val mainTarget = BuildTargetIdentifier(uri = "file:///project/main")
 private val testTarget = BuildTargetIdentifier(uri = "file:///project/test")
+private val jvm17 = Destination(id = DestinationIdentifier(uri = "jvm:17"), displayName = "JVM 17")
 
 fun createExampleBuildServer(): BuildServerConfig =
     buildServer {
@@ -68,6 +76,8 @@ fun createExampleBuildServer(): BuildServerConfig =
             compileProvider = CompileProvider(languageIds = listOf("kotlin"))
             testProvider = TestProvider(languageIds = listOf("kotlin"))
             runProvider = RunProvider(languageIds = listOf("kotlin"))
+            buildTargetDestinationsProvider = true
+            jvmRunEnvironmentProvider = true
             canReload = true
         }
 
@@ -82,16 +92,38 @@ fun createExampleBuildServer(): BuildServerConfig =
             reload { client.logMessage(MessageType.Info, "Workspace reloaded") }
         }
 
+        jvm {
+            runEnvironment { params ->
+                JvmEnvironmentResult(
+                    items =
+                        params.targets.map { target ->
+                            JvmEnvironmentItem(
+                                target = target,
+                                classpath = listOf("file:///project/build/classes"),
+                                jvmOptions = listOf("-Xmx256m"),
+                                workingDirectory = "file:///project",
+                                environmentVariables = mapOf("EXAMPLE" to "1"),
+                            )
+                        },
+                )
+            }
+        }
+
         buildTarget {
             sources { params -> handleSources(params) }
             compile { params -> handleCompile(params) }
             test { params -> handleTest(params) }
+            destinations { DestinationsResult(destinations = listOf(jvm17)) }
             run { params ->
                 val originId = params.originId
-                client.logMessage(MessageType.Info, "Running target: ${params.target.uri}")
+                val destination = params.destination?.uri ?: jvm17.id.uri
+                client.logMessage(MessageType.Info, "Running target ${params.target.uri} on $destination")
                 // run/printStdout needs the originId of the request.
                 if (originId != null) {
-                    client.withTask(requestTaskStart("run-$originId", originId)) { printStdout("Hello from main") }
+                    client.withTask(requestTaskStart("run-$originId", originId)) {
+                        printStdout("Hello from main")
+                        printStderr("(nothing went wrong)")
+                    }
                 }
                 RunResult(originId = originId, statusCode = StatusCode.Ok)
             }

@@ -15,6 +15,8 @@ kotlin {
 
         commonTest {
             dependencies {
+                // The framed end-to-end tests run a real client session against a real server session.
+                implementation(projects.bsp4kClient)
                 implementation(libs.kotlin.test)
                 implementation(libs.kotest.assertions.core)
                 implementation(libs.kotlinx.coroutines.test)

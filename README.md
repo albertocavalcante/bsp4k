@@ -3,26 +3,63 @@
 [![CI](https://github.com/albertocavalcante/bsp4k/actions/workflows/ci.yml/badge.svg)](https://github.com/albertocavalcante/bsp4k/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/albertocavalcante/bsp4k)](LICENSE)
 
-Idiomatic Kotlin Multiplatform library for the [Build Server Protocol (BSP) 2.2](https://build-server-protocol.github.io/docs/specification).
-
-## Features
-
-- **Pure Kotlin** - No Java dependencies, designed for Kotlin from the ground up
-- **Multiplatform** - JVM, Native (macOS, Linux, Windows), and JS targets
-- **kotlinx-serialization** - Type-safe JSON serialization with `@Serializable` data classes
-- **Coroutines** - Async-first API with `suspend` functions and `Flow`
-- **DSL-based** - Intuitive builder DSL for server and client configuration
-- **JVM Extensions** - Built-in support for BSP JVM extensions (run/test environment, compile classpath)
+Kotlin Multiplatform implementation of the
+[Build Server Protocol (BSP) **2.2.0**](https://build-server-protocol.github.io/docs/specification):
+the protocol model, a DSL for build servers and a typed client, on top of
+[jsonrpc4k](https://github.com/albertocavalcante/jsonrpc4k). bsp4k has no backward-compatibility
+promise before 1.0: APIs change when the protocol or the design requires it.
 
 ## Modules
 
 | Module | Description |
 |--------|-------------|
-| `bsp4k-protocol` | BSP 2.1 type definitions (`BuildTarget`, `CompileResult`, `Diagnostic`, etc.) |
-| `bsp4k-server` | Server-side abstractions and DSL |
-| `bsp4k-client` | Client-side abstractions and DSL |
+| `bsp4k-protocol` | Every BSP 2.2.0 type, method name, capability and `dataKind` payload, as `@Serializable` classes |
+| `bsp4k-server` | `buildServer { }` DSL, session lifecycle state machine, task helpers and the server-to-client notification API |
+| `bsp4k-client` | `buildClient { }` DSL, `BuildClientSession` with a typed proxy for every server request |
+| `example` | A runnable build server (`./gradlew :example:run`) |
 
-## Quick Start
+## Coverage
+
+BSP 2.2.0 plus all extensions published with it. "Server" means `buildServer { }` has a handler
+or lifecycle hook for the method and `server.client` (also `client` in handlers) can send it;
+"Client" means `session.server` calls it or `buildClient { }` has an `on...` hook for it.
+Typed `dataKind` payloads are available as `BspDataKind` values (`TaskStartDataKind`,
+`TaskFinishDataKind`, ...).
+
+| Area | Methods | Server | Client |
+|------|---------|:------:|:------:|
+| Lifecycle | `build/initialize`, `build/initialized`, `build/shutdown`, `build/exit` | yes | yes |
+| Workspace | `workspace/buildTargets`, `workspace/reload` | yes | yes |
+| Build target requests | `buildTarget/sources`, `inverseSources`, `dependencySources`, `dependencyModules`, `resources`, `outputPaths`, `cleanCache`, `destinations` | yes | yes |
+| Build, test, run, debug | `buildTarget/compile`, `test`, `run`, `debugSession/start` | yes | yes |
+| Run I/O (unstable) | `run/printStdout`, `run/printStderr` (server to client), `run/readStdin` (client to server) | yes | yes |
+| Notifications to the client | `build/showMessage`, `logMessage`, `publishDiagnostics`, `taskStart`, `taskProgress`, `taskFinish`, `buildTarget/didChange` | yes | yes |
+| JVM extension | `buildTarget/jvmRunEnvironment`, `jvmTestEnvironment`, `jvmCompileClasspath` | yes | yes |
+| Java extension | `buildTarget/javacOptions` | yes | yes |
+| Scala extension | `buildTarget/scalacOptions`, `scalaTestClasses`, `scalaMainClasses` | yes | yes |
+| Python extension | `buildTarget/pythonOptions` | yes | yes |
+| Rust extension | `buildTarget/rustWorkspace` | yes | yes |
+| Cargo extension | `workspace/cargoFeaturesState`, `workspace/setCargoFeatures` | yes | yes |
+| C++ extension | `buildTarget/cppOptions` | yes | yes |
+| Cancellation | `$/cancelRequest` | handled by jsonrpc4k | handled by jsonrpc4k |
+
+Methods outside this table can be served with `onRequest`/`onNotification` in `buildServer { }`
+and `onNotification` in `buildClient { }`.
+
+## Targets and transports
+
+- **Targets:** JVM (toolchain and bytecode level 17), JS (browser and Node.js), macOS x64 and
+  arm64, Linux x64 and arm64, Windows (mingwX64).
+- **Transports:** a session runs on any jsonrpc4k `Transport`: `TransportFactory.stdio()`,
+  `TransportFactory.socket(host, port)` or your own implementation. Which of them a target
+  provides is decided by jsonrpc4k. Messages use `Content-Length` framing.
+- **Sessions:** `start(transport)` runs requests one at a time in arrival order; the overload
+  with a `BoundedDispatchPolicy` and resource limits runs them concurrently within bounds and
+  honors `$/cancelRequest`.
+
+## Quick start
+
+bsp4k is not published yet (`0.1.0-SNAPSHOT`); build it from source with `./gradlew build`.
 
 ### Server
 
@@ -30,15 +67,14 @@ Idiomatic Kotlin Multiplatform library for the [Build Server Protocol (BSP) 2.2]
 val config = buildServer {
     serverInfo("my-build-server", "1.0.0") // bspVersion defaults to BSP_VERSION (2.2.0)
 
-    // Each provider needs its handler and each capability-gated handler needs its provider,
+    // Every provider needs its handler and every capability-gated handler needs its provider,
     // otherwise buildServer { } fails fast.
     capabilities {
-        compileProvider = CompileProvider(listOf("kotlin", "java"))
-        jvmRunEnvironmentProvider = true
+        compileProvider = CompileProvider(languageIds = listOf("kotlin"))
+        runProvider = RunProvider(languageIds = listOf("kotlin"))
     }
 
     lifecycle {
-        onInitialize { params -> data(MyKinds.workspace, describe(params.rootUri)) }
         onInitialized { client.logMessage(MessageType.Info, "ready") }
         onExit { exitCode -> exitProcess(exitCode) } // 0 after build/shutdown, otherwise 1
     }
@@ -48,45 +84,39 @@ val config = buildServer {
     }
 
     buildTarget {
-        sources { params -> SourcesResult(items = resolveSourcesFor(params.targets)) }
+        sources { params -> SourcesResult(items = params.targets.map(::sourcesOf)) }
 
-        // Handlers run with a context whose client sends notifications; withTask always
-        // ends the task and echoes the request's originId.
+        // withTask sends build/taskStart, always ends the task, and echoes the request's originId.
         compile { params ->
             val target = params.targets.single()
             val start = requestTaskStart("compile", params.originId)
                 .withData(TaskStartDataKind.compileTask, CompileTask(target))
             client.withTask(start) {
-                val report = CompileReport(target, originId, errors = 0, warnings = 0)
-                finish(StatusCode.Ok, TaskFinishDataKind.compileReport, report)
+                finish(StatusCode.Ok, TaskFinishDataKind.compileReport, CompileReport(target, originId, errors = 0, warnings = 0))
                 CompileResult(originId = params.originId, statusCode = StatusCode.Ok)
             }
         }
-    }
 
-    jvm {
-        runEnvironment { params -> JvmEnvironmentResult(items = resolveJvmEnv(params.targets)) }
+        // run/printStdout needs the originId of the run request.
+        run { params ->
+            client.withTask(requestTaskStart("run", params.originId)) { printStdout("hello") }
+            RunResult(originId = params.originId, statusCode = StatusCode.Ok)
+        }
     }
 }
 
 val server = config.start(TransportFactory.stdio())
-server.awaitTermination()
+server.awaitTermination() // keeps the process alive until the client exits or the transport ends
 ```
 
-Every BSP 2.2 client-to-server request and notification has a hook in `buildServer { }`:
-`workspace`, `buildTarget`, `debugSession`, `run` (`run/readStdin`) and the `jvm`, `java`,
-`scala`, `python`, `rust`, `cargo` and `cpp` extensions, plus `onRequest`/`onNotification`
-for other methods. Every server-to-client notification has a call on `server.client`
-(also `client` inside handlers), including `printStdout`/`printStderr`.
-
-The server owns the lifecycle and exposes it as `server.state`: requests before
-`build/initialized` fail with ServerNotInitialized (-32002), requests after `build/shutdown`
-and a second `build/initialize` fail with InvalidRequest (-32600), notifications outside the
-running state are dropped, and malformed params fail with InvalidParams (-32602). Inbound
-`$/cancelRequest` is handled by jsonrpc4k: a bounded session answers RequestCancelled (-32800)
-and cancels the handler coroutine, while an unbounded session ignores it. jsonrpc4k dispatches
-a notification only after earlier requests finish, so `run/readStdin` cannot yet reach a run
-that is still in progress.
+Handler hooks exist for every client-to-server request and notification: `workspace`,
+`buildTarget`, `debugSession`, `run` (`readStdin`) and the `jvm`, `java`, `scala`, `python`,
+`rust`, `cargo` and `cpp` extensions. The server owns the lifecycle and publishes it as
+`server.state`: requests before `build/initialized` fail with ServerNotInitialized (-32002),
+requests after `build/shutdown` and a second `build/initialize` fail with InvalidRequest
+(-32600), notifications outside the running state are dropped, and malformed params fail with
+InvalidParams (-32602). See `example/` for a complete server with destinations, `run/print`
+output and the JVM extension.
 
 ### Client
 
@@ -94,53 +124,46 @@ that is still in progress.
 val config = buildClient {
     clientInfo("my-ide", "2.0.0") // bspVersion defaults to BSP_VERSION (2.2.0)
     rootUri("file:///path/to/project")
-    capabilities(languageIds = listOf("kotlin", "java"))
+    capabilities(languageIds = listOf("kotlin"))
 
     onLogMessage { params -> println("[${params.type}] ${params.message}") }
-    onTaskStart { params -> println("Task started: ${params.message}") }
-    onTaskFinish { params -> println("Task finished: ${params.message}") }
+    onTaskStart { params -> println("started ${params.taskId.id} (origin ${params.originId})") }
+    onTaskFinish { params -> println("finished ${params.taskId.id}: ${params.status}") }
     onPrintStdout { params -> print(params.message) }
 }
 
-val transport = TransportFactory.stdio()
-val session = config.start(transport)
+val session = config.start(transport) // any jsonrpc4k Transport
 
-// Validates the server result, then sends build/initialized.
+// Validates the server's result, then sends build/initialized.
 val init = session.initialize()
-println(init.capabilities)
 
-// Calls throw SessionStateException before initialize() and after shutdown()/close().
-val targets = session.server.workspaceBuildTargets()
-val compiled = session.server.compile(CompileParams(targets = targets.targets.map { it.id }))
+// Calls throw SessionStateException before initialize() and after shutdown() or close().
+val targets = session.server.workspaceBuildTargets().targets.map { it.id }
+val compiled = session.server.compile(CompileParams(targets = targets, originId = "compile-1"))
 
-// Per-call timeout (default 30 s) and extension namespaces.
-val javac = session.server.java.javacOptions(JavacOptionsParams(listOf(myTarget)), timeout = 5.seconds)
-session.server.cargo.setFeatures(SetCargoFeaturesParams("pkg", setOf("serde")))
+// Per-call timeout (default 30 s) and one namespace per extension.
+val javac = session.server.java.javacOptions(JavacOptionsParams(targets), timeout = 5.seconds)
 
-session.shutdown()
+session.shutdown() // build/shutdown, then build/exit
 ```
 
-Every BSP 2.2 client-to-server request and notification has a call on `session.server`
-(core, plus `jvm`, `java`, `scala`, `python`, `rust`, `cargo`, `cpp` namespaces and
-`readStdin`). Every server-to-client notification has an `on...` hook in `buildClient { }`.
+## Testing
 
-## Installation
+`bsp4k-server` runs framed end-to-end tests (`BspEndToEndTest`): a real `buildServer { }`
+session and a real `buildClient { }` session joined by an in-memory pipe that delivers
+`Content-Length` frames in small chunks. They cover the handshake, targets, sources,
+compile with task notifications, run with `run/printStdout` and `run/readStdin`, debug sessions,
+destinations, an extension request, `buildTarget/didChange` and shutdown.
 
-Add to your `build.gradle.kts`:
+## Known limitations
 
-```kotlin
-dependencies {
-    implementation("io.github.albertocavalcante:bsp4k-server:0.1.0")
-    // or
-    implementation("io.github.albertocavalcante:bsp4k-client:0.1.0")
-}
-```
-
-## Building
-
-```bash
-./gradlew build
-```
+- `run/readStdin` cannot reach a `buildTarget/run` that is still running: jsonrpc4k dispatches a
+  notification only after earlier requests finish.
+- `run/printStdout`, `run/printStderr` and `run/readStdin` are unstable in BSP 2.2.0 and may change.
+- Without a `BoundedDispatchPolicy` a session runs requests one at a time and ignores
+  `$/cancelRequest`.
+- Per-target transport support (stdio, sockets) is whatever jsonrpc4k provides on that target.
+- Not published to Maven Central yet; the API is unstable.
 
 ## License
 
