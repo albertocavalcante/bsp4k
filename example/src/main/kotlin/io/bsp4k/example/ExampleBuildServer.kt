@@ -6,7 +6,9 @@ import io.bsp4k.protocol.BuildTargetIdentifier
 import io.bsp4k.protocol.CleanCacheResult
 import io.bsp4k.protocol.CompileParams
 import io.bsp4k.protocol.CompileProvider
+import io.bsp4k.protocol.CompileReport
 import io.bsp4k.protocol.CompileResult
+import io.bsp4k.protocol.CompileTask
 import io.bsp4k.protocol.Diagnostic
 import io.bsp4k.protocol.DiagnosticSeverity
 import io.bsp4k.protocol.MessageType
@@ -21,30 +23,35 @@ import io.bsp4k.protocol.SourcesItem
 import io.bsp4k.protocol.SourcesParams
 import io.bsp4k.protocol.SourcesResult
 import io.bsp4k.protocol.StatusCode
-import io.bsp4k.protocol.TaskFinishParams
-import io.bsp4k.protocol.TaskId
-import io.bsp4k.protocol.TaskStartParams
+import io.bsp4k.protocol.TaskFinishDataKind
+import io.bsp4k.protocol.TaskStartDataKind
 import io.bsp4k.protocol.TestParams
 import io.bsp4k.protocol.TestProvider
+import io.bsp4k.protocol.TestReport
 import io.bsp4k.protocol.TestResult
+import io.bsp4k.protocol.TestTask
 import io.bsp4k.protocol.TextDocumentIdentifier
 import io.bsp4k.protocol.WorkspaceBuildTargetsResult
-import io.bsp4k.server.BuildServer
+import io.bsp4k.server.BuildServerConfig
+import io.bsp4k.server.BuildServerContext
 import io.bsp4k.server.buildServer
+import io.bsp4k.server.requestTaskStart
 import io.bsp4k.server.start
+import io.bsp4k.server.withData
 import io.jsonrpc4k.transport.TransportFactory
 import kotlinx.coroutines.runBlocking
+import kotlin.system.exitProcess
 
 /**
  * An example "file-based build server" demonstrating bsp4k features.
  *
  * This server simulates a build system with two targets (main + test) and
  * demonstrates:
- * - Workspace target discovery
- * - Source listing
- * - Compile with task progress notifications and diagnostics
- * - Test simulation with task progress
- * - Run, clean cache, reload
+ * - Lifecycle hooks, including ending the process on `build/exit`
+ * - Workspace target discovery and source listing
+ * - Compile and test reported as typed tasks that echo the request's originId
+ * - Run output forwarded with `run/printStdout`
+ * - Clean cache and reload
  *
  * Run via: `./gradlew :example:run`
  */
@@ -52,25 +59,27 @@ import kotlinx.coroutines.runBlocking
 private val mainTarget = BuildTargetIdentifier(uri = "file:///project/main")
 private val testTarget = BuildTargetIdentifier(uri = "file:///project/test")
 
-private var serverInstance: BuildServer? = null
-
-fun createExampleBuildServer() =
+fun createExampleBuildServer(): BuildServerConfig =
     buildServer {
         serverInfo("example-build-server", "0.1.0")
 
+        // Each provider needs its handler below, and each gated handler needs its provider.
         capabilities {
             compileProvider = CompileProvider(languageIds = listOf("kotlin"))
             testProvider = TestProvider(languageIds = listOf("kotlin"))
             runProvider = RunProvider(languageIds = listOf("kotlin"))
-            inverseSourcesProvider = true
-            dependencySourcesProvider = true
-            resourcesProvider = true
             canReload = true
+        }
+
+        lifecycle {
+            onInitialized { client.logMessage(MessageType.Info, "Example Build Server initialized") }
+            // BSP asks the server process to exit; the session flushed its last messages before this runs.
+            onExit { exitCode -> exitProcess(exitCode) }
         }
 
         workspace {
             buildTargets { discoverTargets() }
-            reload { serverInstance?.client?.logMessage(MessageType.Info, "Workspace reloaded") }
+            reload { client.logMessage(MessageType.Info, "Workspace reloaded") }
         }
 
         buildTarget {
@@ -78,11 +87,16 @@ fun createExampleBuildServer() =
             compile { params -> handleCompile(params) }
             test { params -> handleTest(params) }
             run { params ->
-                serverInstance?.client?.logMessage(MessageType.Info, "Running target: ${params.target.uri}")
-                RunResult(originId = params.originId, statusCode = StatusCode.Ok)
+                val originId = params.originId
+                client.logMessage(MessageType.Info, "Running target: ${params.target.uri}")
+                // run/printStdout needs the originId of the request.
+                if (originId != null) {
+                    client.withTask(requestTaskStart("run-$originId", originId)) { printStdout("Hello from main") }
+                }
+                RunResult(originId = originId, statusCode = StatusCode.Ok)
             }
             cleanCache { params ->
-                serverInstance?.client?.logMessage(MessageType.Info, "Cleaning cache for ${params.targets.size} target(s)")
+                client.logMessage(MessageType.Info, "Cleaning cache for ${params.targets.size} target(s)")
                 CleanCacheResult(message = "Cache cleaned", cleaned = true)
             }
         }
@@ -154,50 +168,54 @@ private fun handleSources(params: SourcesParams) =
             },
     )
 
-private suspend fun handleCompile(params: CompileParams): CompileResult {
-    val client = serverInstance?.client
-    val taskId = TaskId(id = "compile-${params.originId ?: "auto"}")
-
-    client?.taskStart(TaskStartParams(taskId = taskId, message = "Compiling ${params.targets.size} target(s)"))
-
-    params.targets.forEach { target ->
-        client?.publishDiagnostics(
-            PublishDiagnosticsParams(
-                textDocument = TextDocumentIdentifier(uri = "file:///project/src/main/kotlin/App.kt"),
-                buildTarget = target,
-                originId = params.originId,
-                diagnostics =
-                    listOf(
-                        Diagnostic(
-                            range = Range(Position(line = 10, character = 4), Position(line = 10, character = 20)),
-                            severity = DiagnosticSeverity.Warning,
-                            source = "example-compiler",
-                            message = "Unused variable 'temp'",
-                        ),
+/** Compiles each target as a child task carrying `compile-task` and `compile-report` data. */
+private suspend fun BuildServerContext.handleCompile(params: CompileParams): CompileResult {
+    val message = "Compiling ${params.targets.size} target(s)"
+    val start = requestTaskStart("compile-${params.originId ?: "auto"}", params.originId, message)
+    return client.withTask(start) {
+        params.targets.forEach { target ->
+            val child = childTask("compile-${target.uri}").withData(TaskStartDataKind.compileTask, CompileTask(target))
+            client.withTask(child) {
+                client.publishDiagnostics(
+                    PublishDiagnosticsParams(
+                        textDocument = TextDocumentIdentifier(uri = "file:///project/src/main/kotlin/App.kt"),
+                        buildTarget = target,
+                        originId = originId,
+                        diagnostics =
+                            listOf(
+                                Diagnostic(
+                                    range = Range(Position(line = 10, character = 4), Position(line = 10, character = 20)),
+                                    severity = DiagnosticSeverity.Warning,
+                                    source = "example-compiler",
+                                    message = "Unused variable 'temp'",
+                                ),
+                            ),
+                        reset = true,
                     ),
-                reset = false,
-            ),
-        )
+                )
+                val report = CompileReport(target = target, originId = originId, errors = 0, warnings = 1)
+                finish(StatusCode.Ok, TaskFinishDataKind.compileReport, report)
+            }
+        }
+        CompileResult(originId = params.originId, statusCode = StatusCode.Ok)
     }
-
-    client?.taskFinish(TaskFinishParams(taskId = taskId, status = StatusCode.Ok, message = "Compilation succeeded"))
-    return CompileResult(originId = params.originId, statusCode = StatusCode.Ok)
 }
 
-private suspend fun handleTest(params: TestParams): TestResult {
-    val client = serverInstance?.client
-    val taskId = TaskId(id = "test-${params.originId ?: "auto"}")
-
-    client?.taskStart(TaskStartParams(taskId = taskId, message = "Running tests"))
-    client?.taskFinish(TaskFinishParams(taskId = taskId, status = StatusCode.Ok, message = "Tests passed"))
-
-    return TestResult(originId = params.originId, statusCode = StatusCode.Ok)
+/** Runs tests as one task carrying `test-task` and `test-report` data. */
+private suspend fun BuildServerContext.handleTest(params: TestParams): TestResult {
+    val target = params.targets.first()
+    val start =
+        requestTaskStart("test-${params.originId ?: "auto"}", params.originId, "Running tests")
+            .withData(TaskStartDataKind.testTask, TestTask(target))
+    return client.withTask(start) {
+        val report = TestReport(target, originId, passed = 1, failed = 0, ignored = 0, cancelled = 0, skipped = 0)
+        finish(StatusCode.Ok, TaskFinishDataKind.testReport, report)
+        TestResult(originId = params.originId, statusCode = StatusCode.Ok)
+    }
 }
 
 fun main(): Unit =
     runBlocking {
-        val config = createExampleBuildServer()
-        val transport = TransportFactory.stdio()
-        serverInstance = config.start(transport)
-        serverInstance?.client?.logMessage(MessageType.Info, "Example Build Server started")
+        val server = createExampleBuildServer().start(TransportFactory.stdio(), this)
+        server.awaitTermination()
     }
