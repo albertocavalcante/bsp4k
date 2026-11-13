@@ -48,6 +48,15 @@ class MethodCoverageTest {
         endpointTable.filterValues { it.server == null || it.client == null }.keys shouldBe setOf("\$/cancelRequest")
     }
 
+    @Test
+    fun `the surface check finds mangled names and rejects missing ones`() {
+        // Functions taking a Duration (a value class) compile to name-mangled JVM methods.
+        exists(Surface("io.bsp4k.client.BuildClientSession", "shutdown")) shouldBe true
+        exists(Surface("io.bsp4k.client.BuildClientSession", "noSuchFunction")) shouldBe false
+        exists(Surface("io.bsp4k.client.BuildClientSession", "shut")) shouldBe false
+        exists(Surface("io.bsp4k.client.NoSuchClass", "shutdown")) shouldBe false
+    }
+
     private fun serviceOperations(id: String): Set<ShapeId> =
         BspSpec.model
             .expectShape(ShapeId.from(id), ServiceShape::class.java)
@@ -58,5 +67,5 @@ class MethodCoverageTest {
         runCatching { Class.forName(surface.className) }
             .getOrNull()
             ?.methods
-            ?.any { it.name == surface.function } == true
+            ?.any { it.name == surface.function || it.name.startsWith("${surface.function}-") } == true
 }
