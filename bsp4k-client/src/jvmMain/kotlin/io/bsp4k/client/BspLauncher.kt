@@ -43,8 +43,11 @@ public class LaunchedBuildServer internal constructor(
      * call [BuildClientSession.shutdown] first.
      */
     public suspend fun close() {
-        session.close()
-        process.close()
+        try {
+            session.close()
+        } finally {
+            withContext(NonCancellable) { process.close() }
+        }
     }
 }
 

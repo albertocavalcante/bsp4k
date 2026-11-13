@@ -3,6 +3,7 @@ package io.bsp4k.client
 import io.bsp4k.protocol.BspConnectionDetails
 import kotlinx.serialization.json.Json
 import java.io.IOException
+import java.io.UncheckedIOException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -98,9 +99,21 @@ private fun connectionFiles(
                 .toList()
         }
     } catch (failure: IOException) {
-        skipped += SkippedConnectionFile(directory, "cannot list directory: ${failure.message ?: failure::class.simpleName}")
-        emptyList()
+        listingFailed(directory, failure, skipped)
+    } catch (failure: UncheckedIOException) {
+        listingFailed(directory, failure, skipped)
+    } catch (failure: SecurityException) {
+        listingFailed(directory, failure, skipped)
     }
+}
+
+private fun listingFailed(
+    directory: Path,
+    failure: Exception,
+    skipped: MutableList<SkippedConnectionFile>,
+): List<Path> {
+    skipped += SkippedConnectionFile(directory, "cannot list directory: ${failure.message ?: failure::class.simpleName}")
+    return emptyList()
 }
 
 private fun readConnectionFile(file: Path): FileOutcome =
