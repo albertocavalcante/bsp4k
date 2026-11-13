@@ -1,6 +1,7 @@
 package io.bsp4k.protocol
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /** Parameters for the `buildTarget/sources` request. */
 @Serializable
@@ -28,7 +29,9 @@ public data class SourceItem(
     val uri: URI,
     val kind: SourceItemKind,
     val generated: Boolean,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
 
 /** Whether a source item is a file or directory. */
 @Serializable(with = SourceItemKindSerializer::class)

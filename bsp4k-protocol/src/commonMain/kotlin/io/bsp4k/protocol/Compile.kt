@@ -16,6 +16,6 @@ public data class CompileParams(
 public data class CompileResult(
     val originId: String? = null,
     val statusCode: StatusCode,
-    val dataKind: String? = null,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier

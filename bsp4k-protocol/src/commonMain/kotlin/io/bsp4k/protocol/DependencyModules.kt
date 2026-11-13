@@ -27,6 +27,6 @@ public data class DependencyModulesItem(
 public data class DependencyModule(
     val name: String,
     val version: String,
-    val dataKind: String? = null,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier

@@ -9,9 +9,9 @@ public data class RunParams(
     val target: BuildTargetIdentifier,
     val originId: String? = null,
     val arguments: List<String>? = null,
-    val dataKind: String? = null,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
 
 /** Result of the `buildTarget/run` request. */
 @Serializable
