@@ -25,9 +25,6 @@ public object BspMethods {
     public const val BUILD_TARGET_CLEAN_CACHE: String = "buildTarget/cleanCache"
     public const val DEBUG_SESSION_START: String = "debugSession/start"
 
-    @Deprecated("The BSP method is debugSession/start", ReplaceWith("DEBUG_SESSION_START"))
-    public const val BUILD_TARGET_DEBUG_SESSION: String = DEBUG_SESSION_START
-
     // Notifications (server -> client)
     public const val BUILD_LOG_MESSAGE: String = "build/logMessage"
     public const val BUILD_SHOW_MESSAGE: String = "build/showMessage"
