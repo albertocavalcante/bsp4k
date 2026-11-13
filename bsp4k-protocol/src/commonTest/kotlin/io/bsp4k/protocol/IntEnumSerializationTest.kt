@@ -1,6 +1,9 @@
 package io.bsp4k.protocol
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
@@ -118,5 +121,15 @@ class IntEnumSerializationTest {
         json.encodeToJsonElement(BuildTargetEventKind.serializer(), BuildTargetEventKind.Created) shouldBe JsonPrimitive(1)
         json.encodeToJsonElement(BuildTargetEventKind.serializer(), BuildTargetEventKind.Changed) shouldBe JsonPrimitive(2)
         json.encodeToJsonElement(BuildTargetEventKind.serializer(), BuildTargetEventKind.Deleted) shouldBe JsonPrimitive(3)
+    }
+
+    @Test
+    fun `unknown closed enum value throws SerializationException naming enum and value`() {
+        val error =
+            shouldThrow<SerializationException> {
+                json.decodeFromString(LogMessageParams.serializer(), """{"type":9,"message":"x"}""")
+            }
+        error.message.orEmpty() shouldContain "MessageType"
+        error.message.orEmpty() shouldContain "9"
     }
 }

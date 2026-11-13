@@ -69,5 +69,5 @@ public data class PublishDiagnosticsParams(
     val buildTarget: BuildTargetIdentifier,
     val originId: String? = null,
     val diagnostics: List<Diagnostic>,
-    val reset: Boolean = false,
+    val reset: Boolean,
 )

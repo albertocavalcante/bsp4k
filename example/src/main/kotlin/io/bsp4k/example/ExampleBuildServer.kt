@@ -99,6 +99,7 @@ private fun discoverTargets() =
                     tags = listOf("application"),
                     capabilities = BuildTargetCapabilities(canCompile = true, canRun = true),
                     languageIds = listOf("kotlin"),
+                    dependencies = emptyList(),
                 ),
                 BuildTarget(
                     id = testTarget,
@@ -122,8 +123,16 @@ private fun handleSources(params: SourcesParams) =
                             target = target,
                             sources =
                                 listOf(
-                                    SourceItem(uri = "file:///project/src/main/kotlin/Main.kt", kind = SourceItemKind.File),
-                                    SourceItem(uri = "file:///project/src/main/kotlin/App.kt", kind = SourceItemKind.File),
+                                    SourceItem(
+                                        uri = "file:///project/src/main/kotlin/Main.kt",
+                                        kind = SourceItemKind.File,
+                                        generated = false,
+                                    ),
+                                    SourceItem(
+                                        uri = "file:///project/src/main/kotlin/App.kt",
+                                        kind = SourceItemKind.File,
+                                        generated = false,
+                                    ),
                                 ),
                             roots = listOf("file:///project/src/main/kotlin"),
                         )
@@ -132,7 +141,11 @@ private fun handleSources(params: SourcesParams) =
                             target = target,
                             sources =
                                 listOf(
-                                    SourceItem(uri = "file:///project/src/test/kotlin/MainTest.kt", kind = SourceItemKind.File),
+                                    SourceItem(
+                                        uri = "file:///project/src/test/kotlin/MainTest.kt",
+                                        kind = SourceItemKind.File,
+                                        generated = false,
+                                    ),
                                 ),
                             roots = listOf("file:///project/src/test/kotlin"),
                         )
@@ -162,6 +175,7 @@ private suspend fun handleCompile(params: CompileParams): CompileResult {
                             message = "Unused variable 'temp'",
                         ),
                     ),
+                reset = false,
             ),
         )
     }

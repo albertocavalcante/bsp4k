@@ -1,6 +1,7 @@
 package io.bsp4k.protocol
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -31,6 +32,7 @@ internal open class IntEnumSerializer<T>(
 
     override fun deserialize(decoder: Decoder): T {
         val intValue = decoder.decodeInt()
-        return entries.first { toValue(it) == intValue }
+        return entries.firstOrNull { toValue(it) == intValue }
+            ?: throw SerializationException("Unknown ${descriptor.serialName} value: $intValue")
     }
 }

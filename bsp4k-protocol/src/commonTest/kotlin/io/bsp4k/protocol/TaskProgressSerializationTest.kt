@@ -5,7 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 
 class TaskProgressSerializationTest {
-    private val json = Json { encodeDefaults = true }
+    private val json = wireJson
     private val jsonNoDefaults = Json
 
     @Test
