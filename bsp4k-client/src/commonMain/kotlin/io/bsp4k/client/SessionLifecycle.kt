@@ -96,13 +96,14 @@ internal class SessionLifecycle(
         while (true) {
             val current = end.value
             if (current == null) {
-                if (!end.compareAndSet(null, End(null, resolved = false))) continue
-                continue
+                end.compareAndSet(null, End(null, resolved = false))
+            } else if (current.resolved) {
+                return current
+            } else {
+                val coreFailure = (connection.state.value as? ConnectionState.Failed)?.cause
+                val resolved = End(coreFailure ?: current.cause, resolved = true)
+                if (end.compareAndSet(current, resolved)) return resolved
             }
-            if (current.resolved) return current
-            val coreFailure = (connection.state.value as? ConnectionState.Failed)?.cause
-            val resolved = End(coreFailure ?: current.cause, resolved = true)
-            if (end.compareAndSet(current, resolved)) return resolved
         }
     }
 }
