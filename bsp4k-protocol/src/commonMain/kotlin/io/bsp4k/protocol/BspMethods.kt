@@ -34,6 +34,13 @@ public object BspMethods {
     public const val BUILD_TASK_PROGRESS: String = "build/taskProgress"
     public const val BUILD_TASK_FINISH: String = "build/taskFinish"
 
+    // Destinations, run stdio and cancellation (BSP 2.2 core)
+    public const val BUILD_TARGET_DESTINATIONS: String = "buildTarget/destinations"
+    public const val RUN_PRINT_STDOUT: String = "run/printStdout"
+    public const val RUN_PRINT_STDERR: String = "run/printStderr"
+    public const val RUN_READ_STDIN: String = "run/readStdin"
+    public const val CANCEL_REQUEST: String = "$/cancelRequest"
+
     // JVM Extensions
     public const val BUILD_TARGET_JVM_RUN_ENVIRONMENT: String = "buildTarget/jvmRunEnvironment"
     public const val BUILD_TARGET_JVM_TEST_ENVIRONMENT: String = "buildTarget/jvmTestEnvironment"

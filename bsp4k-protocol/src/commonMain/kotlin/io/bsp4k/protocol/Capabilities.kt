@@ -2,29 +2,33 @@ package io.bsp4k.protocol
 
 import kotlinx.serialization.Serializable
 
-/** Capabilities of the BSP server. */
+/** Capabilities of the BSP server. Members default to `false` (BSP 2.2.0). */
 @Serializable
 public data class BuildServerCapabilities(
     val compileProvider: CompileProvider? = null,
     val testProvider: TestProvider? = null,
     val runProvider: RunProvider? = null,
     val debugProvider: DebugProvider? = null,
-    val inverseSourcesProvider: Boolean? = null,
-    val dependencySourcesProvider: Boolean? = null,
-    val dependencyModulesProvider: Boolean? = null,
-    val resourcesProvider: Boolean? = null,
-    val outputPathsProvider: Boolean? = null,
-    val buildTargetChangedProvider: Boolean? = null,
-    val jvmRunEnvironmentProvider: Boolean? = null,
-    val jvmTestEnvironmentProvider: Boolean? = null,
-    val jvmCompileClasspathProvider: Boolean? = null,
-    val canReload: Boolean? = null,
+    val buildTargetDestinationsProvider: Boolean = false,
+    val inverseSourcesProvider: Boolean = false,
+    val dependencySourcesProvider: Boolean = false,
+    val dependencyModulesProvider: Boolean = false,
+    val resourcesProvider: Boolean = false,
+    val outputPathsProvider: Boolean = false,
+    val buildTargetChangedProvider: Boolean = false,
+    val jvmRunEnvironmentProvider: Boolean = false,
+    val jvmTestEnvironmentProvider: Boolean = false,
+    val cargoFeaturesProvider: Boolean = false,
+    val canReload: Boolean = false,
+    val jvmCompileClasspathProvider: Boolean = false,
 )
 
-/** Capabilities of the BSP client. */
+/** Capabilities of the BSP client. Receiver members default to `false` (BSP 2.2.0). */
 @Serializable
 public data class BuildClientCapabilities(
     val languageIds: List<String>,
+    val buildTargetDestinationsReceiver: Boolean = false,
+    val jvmCompileClasspathReceiver: Boolean = false,
 )
 
 /** Describes a compile provider with supported language IDs. */
