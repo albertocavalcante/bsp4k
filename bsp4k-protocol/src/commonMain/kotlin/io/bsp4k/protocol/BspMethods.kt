@@ -44,4 +44,11 @@ public object BspMethods {
     public const val BUILD_TARGET_SCALAC_OPTIONS: String = "buildTarget/scalacOptions"
     public const val BUILD_TARGET_SCALA_TEST_CLASSES: String = "buildTarget/scalaTestClasses"
     public const val BUILD_TARGET_SCALA_MAIN_CLASSES: String = "buildTarget/scalaMainClasses"
+
+    // Python, C++, Rust and Cargo extensions
+    public const val BUILD_TARGET_PYTHON_OPTIONS: String = "buildTarget/pythonOptions"
+    public const val BUILD_TARGET_CPP_OPTIONS: String = "buildTarget/cppOptions"
+    public const val BUILD_TARGET_RUST_WORKSPACE: String = "buildTarget/rustWorkspace"
+    public const val WORKSPACE_CARGO_FEATURES_STATE: String = "workspace/cargoFeaturesState"
+    public const val WORKSPACE_SET_CARGO_FEATURES: String = "workspace/setCargoFeatures"
 }
