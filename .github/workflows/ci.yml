@@ -17,7 +17,7 @@ concurrency:
 env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'temurin'
-  JSONRPC4K_REV: 'f5459d00bae6efacdadbdd742f1a55d0eafe1008'
+  JSONRPC4K_REV: 'a79b71c24e3d77317fdf2e842b5bd85aef1d8efa'
 
 defaults:
   run:
@@ -157,6 +157,102 @@ jobs:
 
       - name: Spotless Check
         run: ./gradlew spotlessCheck
+
+  # ===========================================================================
+  # Job 5: macOS Apple targets
+  # ===========================================================================
+  macos:
+    name: macOS Native Check
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: bsp4k
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout jsonrpc4k
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: albertocavalcante/jsonrpc4k
+          ref: ${{ env.JSONRPC4K_REV }}
+          path: jsonrpc4k
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Show Xcode
+        run: xcrun xcodebuild -version
+
+      - name: Check Apple targets
+        run: ./gradlew compileTestKotlinMacosX64 macosArm64Test
+
+  # ===========================================================================
+  # Job 6: Coverage (Kover)
+  # ===========================================================================
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: bsp4k
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout jsonrpc4k
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: albertocavalcante/jsonrpc4k
+          ref: ${{ env.JSONRPC4K_REV }}
+          path: jsonrpc4k
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Kover Coverage Report
+        run: ./gradlew koverHtmlReport koverXmlReport
+
+      - name: Kover Coverage Verify
+        run: ./gradlew koverVerify
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: coverage-report
+          path: bsp4k/build/reports/kover/
+          retention-days: 7
 
   java17-consumer:
     name: Published Java 17 BSP consumer
