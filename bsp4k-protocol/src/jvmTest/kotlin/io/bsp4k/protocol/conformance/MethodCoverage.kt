@@ -126,6 +126,6 @@ internal val endpointTable: Map<String, Endpoint> =
                 Direction.Bidirectional,
                 server = null,
                 client = null,
-                note = "jsonrpc4k sends and consumes it; a bounded session cancels the running handler",
+                note = "jsonrpc4k sends and consumes it; a session cancels the running handler",
             ),
     )

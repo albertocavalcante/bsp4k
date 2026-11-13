@@ -21,10 +21,7 @@ import io.bsp4k.protocol.TaskStartParams
 import io.bsp4k.protocol.TestReport
 import io.bsp4k.protocol.TestTask
 import io.bsp4k.protocol.decodeData
-import io.jsonrpc4k.core.BoundedDispatchPolicy
-import io.jsonrpc4k.core.InboundResourceLimits
 import io.jsonrpc4k.core.NotificationMessage
-import io.jsonrpc4k.core.OutboundResourceLimits
 import io.jsonrpc4k.core.RequestId
 import io.jsonrpc4k.core.ResponseError
 import kotlinx.coroutines.CompletableDeferred
@@ -235,7 +232,7 @@ class BuildTaskTest {
     }
 
     @Test
-    fun `a request cancelled in a bounded session still ends its task`() =
+    fun `a cancelled request still ends its task`() =
         runTest {
             val entered = CompletableDeferred<Unit>()
             val transport = MemoryTransport()
@@ -250,13 +247,7 @@ class BuildTaskTest {
                             }
                         }
                     }
-                }.start(
-                    transport,
-                    BoundedDispatchPolicy(2, 8),
-                    InboundResourceLimits(4096, 32, 8192),
-                    OutboundResourceLimits(1024, 2048, 8, 8, 1024, 2, 1024, 32),
-                    backgroundScope,
-                )
+                }.start(transport, backgroundScope)
             val peer = TestClient(transport)
             peer.handshake()
 

@@ -50,26 +50,23 @@ internal fun <H> MutableMap<String, H>.putUniqueHandler(
 public fun buildClient(block: BuildClientBuilder.() -> Unit): BuildClientConfig = BuildClientBuilder().apply(block).build()
 
 /**
- * Start a build client session with the given configuration and transport.
+ * Starts a build client session with the given configuration and [transport].
  * The supplied scope and transport remain caller-owned; closing a session does not close the transport.
+ *
+ * Dispatch is concurrent and bounded by [policy] (default: 16 concurrent handlers, 256 queued messages).
+ * A notification is a barrier: earlier requests finish before it runs and later messages wait for it,
+ * so server notifications are delivered to handlers in order. Inbound `$/cancelRequest` answers the
+ * request with RequestCancelled (-32800) and cancels its handler coroutine.
+ * [inboundLimits] and [outboundLimits] are wire-size proxies, not a total heap bound; typed payload
+ * conversion to JSON happens before outbound admission and is outside them. A transport collector
+ * must not await reentrant sends on the same connection.
  */
 public suspend fun BuildClientConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-): BuildClientSession = startSession(transport, SessionLifecycle(scope))
-
-/**
- * Starts an explicitly bounded session using the fixed default JSON codec.
- * Limits are wire-size proxies, not a total heap bound. Typed payload conversion to JSON happens
- * before outbound admission and is outside these limits. The supplied scope and transport remain
- * caller-owned. A transport collector must not await reentrant sends on the same connection.
- */
-public suspend fun BuildClientConfig.start(
-    transport: Transport,
-    policy: BoundedDispatchPolicy,
-    inboundLimits: InboundResourceLimits,
-    outboundLimits: OutboundResourceLimits,
-    scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+    policy: BoundedDispatchPolicy = SessionDefaults.policy,
+    inboundLimits: InboundResourceLimits = SessionDefaults.inboundLimits,
+    outboundLimits: OutboundResourceLimits = SessionDefaults.outboundLimits,
 ): BuildClientSession = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
 
 private suspend fun BuildClientConfig.startSession(
