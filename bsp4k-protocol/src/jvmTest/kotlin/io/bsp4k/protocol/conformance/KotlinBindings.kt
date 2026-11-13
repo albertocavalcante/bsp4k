@@ -90,8 +90,11 @@ internal object KotlinBindings {
 
     private fun closedEnum(
         cls: Class<*>,
-        serializer: KSerializer<Any?>,
-    ): Binding = Binding.ClosedEnum(cls.enumConstants.map { json.encodeToJsonElement(serializer, it) }.toSet())
+        serializer: KSerializer<Any>,
+    ): Binding =
+        Binding.ClosedEnum(
+            cls.enumConstants.map { json.encodeToJsonElement(serializer, requireNotNull(it)) }.toSet(),
+        )
 
     private fun openEnum(cls: Class<*>): Binding =
         Binding.OpenEnum(
