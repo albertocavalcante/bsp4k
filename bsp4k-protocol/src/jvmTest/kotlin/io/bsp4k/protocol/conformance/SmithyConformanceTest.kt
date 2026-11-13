@@ -39,7 +39,12 @@ class SmithyConformanceTest {
 
     @Test
     fun `every allow-list entry states a reason`() {
-        val withoutReason = AllowList.load(ALLOW_LIST).reasons.filterValues { it.isEmpty() }.keys
+        val withoutReason =
+            AllowList
+                .load(ALLOW_LIST)
+                .reasons
+                .filterValues { it.isEmpty() }
+                .keys
         withClue("Add a reason after the id: id  # reason") { withoutReason shouldBe emptySet<String>() }
     }
 

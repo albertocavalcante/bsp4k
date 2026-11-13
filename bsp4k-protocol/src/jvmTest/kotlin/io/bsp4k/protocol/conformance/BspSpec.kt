@@ -21,8 +21,7 @@ internal object BspSpec {
 
     val model: Model by lazy { assemble() }
 
-    fun resource(name: String): URL =
-        checkNotNull(BspSpec::class.java.getResource("$ROOT/$name")) { "missing vendored spec file $name" }
+    fun resource(name: String): URL = checkNotNull(BspSpec::class.java.getResource("$ROOT/$name")) { "missing vendored spec file $name" }
 
     fun sha256(name: String): String =
         MessageDigest

@@ -123,8 +123,7 @@ internal class ConformanceChecker(
         }
     }
 
-    private fun enumKind(shape: Shape): String? =
-        shape.findTrait(ENUM_KIND).map { it.toNode().expectStringNode().value }.orElse(null)
+    private fun enumKind(shape: Shape): String? = shape.findTrait(ENUM_KIND).map { it.toNode().expectStringNode().value }.orElse(null)
 
     private fun enumValues(shape: Shape): Set<JsonElement> =
         when (shape) {
@@ -146,7 +145,12 @@ internal class ConformanceChecker(
     private fun checkDataKinds() {
         model.shapes().toList().forEach { shape ->
             shape.findTrait(DATA_KIND).ifPresent { trait ->
-                val kind = trait.toNode().expectObjectNode().expectStringMember("kind").value
+                val kind =
+                    trait
+                        .toNode()
+                        .expectObjectNode()
+                        .expectStringMember("kind")
+                        .value
                 if (kind !in dataKinds) violations += "datakind-missing:$kind:${shape.id}"
             }
         }
