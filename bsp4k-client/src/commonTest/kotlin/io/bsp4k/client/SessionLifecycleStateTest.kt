@@ -54,7 +54,9 @@ class SessionLifecycleStateTest {
             assertEquals("k", returned.dataKind)
             assertEquals(JsonObject(mapOf("a" to JsonPrimitive(1))), returned.data)
             assertEquals(SessionState.READY, session.state)
-            assertEquals(listOf("build/initialized"), peer.notifications.map { it.method })
+            // Notifications are written asynchronously; shutdown flushes them, so initialized must precede exit.
+            session.shutdown()
+            assertEquals(listOf("build/initialized", "build/exit"), peer.notifications.map { it.method })
         }
 
     @Test
