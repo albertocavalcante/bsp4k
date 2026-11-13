@@ -37,7 +37,12 @@ class BspConnectionDiscoveryTest {
                 result.skipped.map { it.file.fileName.toString() }.toSet(),
             )
             assertTrue(result.skipped.all { it.reason.isNotBlank() })
-            assertTrue(result.skipped.single { it.file.fileName.toString() == "empty-argv.json" }.reason.contains("argv"))
+            assertTrue(
+                result.skipped
+                    .single { it.file.fileName.toString() == "empty-argv.json" }
+                    .reason
+                    .contains("argv"),
+            )
         }
 
     @Test
@@ -86,7 +91,8 @@ class BspConnectionDiscoveryTest {
 internal fun details(
     name: String,
     argv: List<String> = listOf("server", "--stdio"),
-): BspConnectionDetails = BspConnectionDetails(name = name, argv = argv, version = "1.0", bspVersion = "2.2.0", languages = listOf("kotlin"))
+): BspConnectionDetails =
+    BspConnectionDetails(name = name, argv = argv, version = "1.0", bspVersion = "2.2.0", languages = listOf("kotlin"))
 
 internal fun writeDetails(
     file: Path,
