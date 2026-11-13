@@ -58,3 +58,18 @@ public data class JvmCompileClasspathItem(
     val target: BuildTargetIdentifier,
     val classpath: List<URI>,
 )
+
+/** JVM-specific metadata for a source item (`dataKind` is [JvmDataKinds.SOURCE_ITEM]). */
+@Serializable
+public data class JvmSourceItemData(
+    val packageName: String? = null,
+)
+
+/** `dataKind` strings defined by the JVM extension. */
+public object JvmDataKinds {
+    /** `BuildTarget.dataKind` for [JvmBuildTarget]. */
+    public const val BUILD_TARGET: String = "jvm"
+
+    /** `SourceItem.dataKind` for [JvmSourceItemData]. */
+    public const val SOURCE_ITEM: String = "jvm"
+}

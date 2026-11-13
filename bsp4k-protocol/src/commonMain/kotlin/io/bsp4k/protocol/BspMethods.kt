@@ -38,4 +38,10 @@ public object BspMethods {
     public const val BUILD_TARGET_JVM_RUN_ENVIRONMENT: String = "buildTarget/jvmRunEnvironment"
     public const val BUILD_TARGET_JVM_TEST_ENVIRONMENT: String = "buildTarget/jvmTestEnvironment"
     public const val BUILD_TARGET_JVM_COMPILE_CLASSPATH: String = "buildTarget/jvmCompileClasspath"
+
+    // Java and Scala Extensions
+    public const val BUILD_TARGET_JAVAC_OPTIONS: String = "buildTarget/javacOptions"
+    public const val BUILD_TARGET_SCALAC_OPTIONS: String = "buildTarget/scalacOptions"
+    public const val BUILD_TARGET_SCALA_TEST_CLASSES: String = "buildTarget/scalaTestClasses"
+    public const val BUILD_TARGET_SCALA_MAIN_CLASSES: String = "buildTarget/scalaMainClasses"
 }
