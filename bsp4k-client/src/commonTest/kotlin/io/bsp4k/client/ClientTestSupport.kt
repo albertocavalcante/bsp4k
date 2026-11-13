@@ -2,7 +2,9 @@ package io.bsp4k.client
 
 import io.jsonrpc4k.core.JsonRpcCodec
 import io.jsonrpc4k.core.JsonRpcMessageDecoder
+import io.jsonrpc4k.core.Message
 import io.jsonrpc4k.core.NotificationMessage
+import io.jsonrpc4k.core.Payload
 import io.jsonrpc4k.core.RequestMessage
 import io.jsonrpc4k.core.ResponseError
 import io.jsonrpc4k.core.ResponseMessage
@@ -40,7 +42,7 @@ internal class FakePeer(
     override val incoming: Flow<ByteArray> = inbound.receiveAsFlow()
 
     override suspend fun send(data: ByteArray) {
-        for (message in JsonRpcMessageDecoder().feed(data)) {
+        for (message in JsonRpcMessageDecoder().feedMessages(data)) {
             when (message) {
                 is RequestMessage -> answer(message)
                 is NotificationMessage -> notifications += message
@@ -109,3 +111,13 @@ internal suspend fun TestScope.assertNotify(
     val sent = peer.notifications.single { it.method == method }
     assertEquals(parse(paramsJson), sent.params)
 }
+
+/** Feeds [data] and returns the decoded messages, flattening batches; invalid payloads fail the test. */
+internal fun JsonRpcMessageDecoder.feedMessages(data: ByteArray): List<Message> =
+    feed(data).flatMap { payload ->
+        when (payload) {
+            is Payload.Single -> listOf(payload.message)
+            is Payload.Batch -> payload.entries.filterNotNull()
+            is Payload.Invalid -> error("Unexpected invalid payload: ${payload.error}")
+        }
+    }

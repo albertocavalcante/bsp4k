@@ -204,7 +204,7 @@ class SessionOwnershipTest {
             assertFalse(terminal.isCompleted)
             transport.releaseSend.complete(Unit)
             assertEquals(null, withTimeout(5_000) { terminal.await() })
-            val response = JsonRpcMessageDecoder().feed(transport.sent.single()).single() as ResponseMessage
+            val response = JsonRpcMessageDecoder().feedMessages(transport.sent.single()).single() as ResponseMessage
             assertEquals(RequestId.of(7), response.id)
             // Shutdown before initialize is refused, and exit must still flush that answer before closing.
             assertEquals(ResponseError.SERVER_NOT_INITIALIZED, response.error?.code)

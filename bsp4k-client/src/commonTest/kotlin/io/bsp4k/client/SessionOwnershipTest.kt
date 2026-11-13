@@ -313,7 +313,7 @@ private class ScriptedTransport(
 
     override suspend fun send(data: ByteArray) {
         failure?.let { throw it }
-        when (val message = JsonRpcMessageDecoder().feed(data).single()) {
+        when (val message = JsonRpcMessageDecoder().feedMessages(data).single()) {
             is RequestMessage ->
                 if (message.method == "build/shutdown") {
                     val response =

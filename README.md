@@ -51,8 +51,12 @@ and `onNotification` in `buildClient { }`.
 - **Targets:** JVM (toolchain and bytecode level 17), JS (browser and Node.js), macOS x64 and
   arm64, Linux x64 and arm64, Windows (mingwX64).
 - **Transports:** a session runs on any jsonrpc4k `Transport`: `TransportFactory.stdio()`,
-  `TransportFactory.socket(host, port)` or your own implementation. Which of them a target
-  provides is decided by jsonrpc4k. Messages use `Content-Length` framing.
+  `SocketTransport.connect(host, port)`, `ProcessTransport.start(command)` or your own implementation.
+  Which of them a target provides is decided by jsonrpc4k. Messages use `Content-Length` framing.
+- **Discovery and launch (JVM):** `BspConnectionDiscovery` finds connection files in the workspace
+  `.bsp` directory and then in the user and system `bsp` data directories, skipping invalid files with
+  a reported reason. `BuildClientConfig.launch(details, workspaceRoot)` starts the server through
+  `ProcessTransport` and returns a `LaunchedBuildServer` that owns the child process.
 - **Sessions:** `start(transport)` runs requests one at a time in arrival order; the overload
   with a `BoundedDispatchPolicy` and resource limits runs them concurrently within bounds and
   honors `$/cancelRequest`.
