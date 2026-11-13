@@ -28,45 +28,65 @@ Idiomatic Kotlin Multiplatform library for the [Build Server Protocol (BSP) 2.1]
 
 ```kotlin
 val config = buildServer {
-    serverInfo("my-build-server", "1.0.0")
+    serverInfo("my-build-server", "1.0.0") // bspVersion defaults to BSP_VERSION (2.2.0)
 
+    // Each provider needs its handler and each capability-gated handler needs its provider,
+    // otherwise buildServer { } fails fast.
     capabilities {
         compileProvider = CompileProvider(listOf("kotlin", "java"))
-        testProvider = TestProvider(listOf("kotlin", "java"))
-        dependencySourcesProvider = true
-        resourcesProvider = true
+        jvmRunEnvironmentProvider = true
+    }
+
+    lifecycle {
+        onInitialize { params -> data(MyKinds.workspace, describe(params.rootUri)) }
+        onInitialized { client.logMessage(MessageType.Info, "ready") }
+        onExit { exitCode -> exitProcess(exitCode) } // 0 after build/shutdown, otherwise 1
     }
 
     workspace {
-        buildTargets {
-            WorkspaceBuildTargetsResult(targets = discoverTargets())
-        }
+        buildTargets { WorkspaceBuildTargetsResult(targets = discoverTargets()) }
     }
 
     buildTarget {
-        sources { params ->
-            SourcesResult(items = resolveSourcesFor(params.targets))
-        }
+        sources { params -> SourcesResult(items = resolveSourcesFor(params.targets)) }
 
+        // Handlers run with a context whose client sends notifications; withTask always
+        // ends the task and echoes the request's originId.
         compile { params ->
-            CompileResult(statusCode = StatusCode.Ok)
-        }
-
-        test { params ->
-            TestResult(statusCode = StatusCode.Ok)
+            val target = params.targets.single()
+            val start = requestTaskStart("compile", params.originId)
+                .withData(TaskStartDataKind.compileTask, CompileTask(target))
+            client.withTask(start) {
+                val report = CompileReport(target, originId, errors = 0, warnings = 0)
+                finish(StatusCode.Ok, TaskFinishDataKind.compileReport, report)
+                CompileResult(originId = params.originId, statusCode = StatusCode.Ok)
+            }
         }
     }
 
     jvm {
-        runEnvironment { params ->
-            JvmEnvironmentResult(items = resolveJvmEnv(params.targets))
-        }
+        runEnvironment { params -> JvmEnvironmentResult(items = resolveJvmEnv(params.targets)) }
     }
 }
 
-val transport = TransportFactory.stdio()
-val server = config.start(transport)
+val server = config.start(TransportFactory.stdio())
+server.awaitTermination()
 ```
+
+Every BSP 2.2 client-to-server request and notification has a hook in `buildServer { }`:
+`workspace`, `buildTarget`, `debugSession`, `run` (`run/readStdin`) and the `jvm`, `java`,
+`scala`, `python`, `rust`, `cargo` and `cpp` extensions, plus `onRequest`/`onNotification`
+for other methods. Every server-to-client notification has a call on `server.client`
+(also `client` inside handlers), including `printStdout`/`printStderr`.
+
+The server owns the lifecycle and exposes it as `server.state`: requests before
+`build/initialized` fail with ServerNotInitialized (-32002), requests after `build/shutdown`
+and a second `build/initialize` fail with InvalidRequest (-32600), notifications outside the
+running state are dropped, and malformed params fail with InvalidParams (-32602). Inbound
+`$/cancelRequest` is handled by jsonrpc4k: a bounded session answers RequestCancelled (-32800)
+and cancels the handler coroutine, while an unbounded session ignores it. jsonrpc4k dispatches
+a notification only after earlier requests finish, so `run/readStdin` cannot yet reach a run
+that is still in progress.
 
 ### Client
 
