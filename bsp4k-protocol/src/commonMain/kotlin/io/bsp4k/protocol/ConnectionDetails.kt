@@ -2,7 +2,7 @@ package io.bsp4k.protocol
 
 import kotlinx.serialization.Serializable
 
-/** Describes how to start a BSP server and the capabilities it supports (`.bsp/*.json`). */
+/** Describes how to start a BSP server and the capabilities it supports (a `.json` file in the `.bsp` directory). */
 @Serializable
 public data class BspConnectionDetails(
     val name: String,
