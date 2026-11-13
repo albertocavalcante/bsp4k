@@ -221,19 +221,33 @@ class BspEndToEndTest {
             assertTrue(result.capabilities.buildTargetChangedProvider)
             assertEquals(SessionState.READY, e2e.session.state)
             withTimeout(5.seconds) { e2e.server.state.first { it == BuildServerState.Running } }
-            assertEquals("ready", e2e.clientSeen.logs.next().message)
+            assertEquals(
+                "ready",
+                e2e.clientSeen.logs
+                    .next()
+                    .message,
+            )
         }
 
     @Test
     fun `workspace buildTargets and sources travel the framed wire`() =
         runTest {
             val e2e = startEndToEnd()
-            val targets = e2e.session.server.workspaceBuildTargets().targets
+            val targets =
+                e2e.session.server
+                    .workspaceBuildTargets()
+                    .targets
             assertEquals(listOf(main), targets.map { it.id })
             assertEquals("main", targets.single().displayName)
 
             val sources = e2e.session.server.sources(SourcesParams(targets = listOf(main)))
-            assertEquals(sourceFile, sources.items.single().sources.single())
+            assertEquals(
+                sourceFile,
+                sources.items
+                    .single()
+                    .sources
+                    .single(),
+            )
         }
 
     @Test
@@ -261,7 +275,12 @@ class BspEndToEndTest {
             val result = e2e.session.server.run(RunParams(target = main, destination = jvm17, originId = "run-1"))
 
             assertEquals(StatusCode.Ok, result.statusCode)
-            assertEquals(jvm17, e2e.serverSeen.runParams.single().destination)
+            assertEquals(
+                jvm17,
+                e2e.serverSeen.runParams
+                    .single()
+                    .destination,
+            )
             val first = e2e.clientSeen.stdout.next()
             val second = e2e.clientSeen.stdout.next()
             assertEquals(listOf("hello ", "world"), listOf(first.message, second.message))
@@ -281,7 +300,12 @@ class BspEndToEndTest {
             val address = e2e.session.server.debugSession(DebugSessionParams(targets = listOf(main), destination = jvm17))
 
             assertEquals(debugAddress, address)
-            assertEquals(jvm17, e2e.serverSeen.debugParams.single().destination)
+            assertEquals(
+                jvm17,
+                e2e.serverSeen.debugParams
+                    .single()
+                    .destination,
+            )
         }
 
     @Test
@@ -297,7 +321,9 @@ class BspEndToEndTest {
     fun `scalacOptions extension request round trips`() =
         runTest {
             val e2e = startEndToEnd()
-            val result = e2e.session.server.scala.scalacOptions(ScalacOptionsParams(targets = listOf(main)))
+            val result =
+                e2e.session.server.scala
+                    .scalacOptions(ScalacOptionsParams(targets = listOf(main)))
 
             val item = result.items.single()
             assertEquals(main, item.target)
