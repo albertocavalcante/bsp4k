@@ -88,7 +88,7 @@ class BuildTaskTest {
 
             assertEquals(encode(CompileResult.serializer(), CompileResult("o-1", StatusCode.Ok)), response.result)
             val start = peer.nextStart()
-            assertEquals(TaskId("compile-1"), start.taskId)
+            assertEquals(TaskId("compile-1", listOf("o-1")), start.taskId)
             assertEquals("o-1", start.originId)
             assertEquals("Compiling", start.message)
             assertEquals(CompileTask(target), start.decodeData(TaskStartDataKind.compileTask))

@@ -144,7 +144,7 @@ public fun requestTaskStart(
     message: String? = null,
 ): TaskStartParams =
     TaskStartParams(
-        taskId = TaskId(id = id),
+        taskId = TaskId(id = id, parents = originId?.let { listOf(it) }),
         originId = originId,
         message = message,
     )
