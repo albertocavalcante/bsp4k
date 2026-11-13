@@ -115,6 +115,8 @@ private fun requireConsistentCapabilities(
                 else -> null
             }
         }
-    require(problems.isEmpty()) { "Capabilities and handlers disagree (declare the capability in capabilities { } and register " +
-            "every handler it covers, for example cargo { featuresState; setFeatures }): ${problems.joinToString("; ")}" }
+    require(problems.isEmpty()) {
+        "Capabilities and handlers disagree (declare the capability in capabilities { } and register " +
+            "every handler it covers, for example cargo { featuresState; setFeatures }): ${problems.joinToString("; ")}"
+    }
 }
