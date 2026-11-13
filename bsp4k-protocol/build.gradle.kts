@@ -21,6 +21,10 @@ kotlin {
         jvmTest {
             dependencies {
                 implementation(libs.kotest.runner.junit5)
+                implementation(libs.smithy.model)
+                // Method-coverage conformance inspects the public server and client APIs.
+                implementation(projects.bsp4kServer)
+                implementation(projects.bsp4kClient)
             }
         }
     }

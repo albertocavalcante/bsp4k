@@ -1,0 +1,7 @@
+# Ratcheting allow-list for SmithyConformanceTest.
+#
+# One violation id per line, followed by a reason after "  #", for example:
+#   shape-missing:bsp#Example  # tracked in <issue>: not modeled yet
+#
+# The test fails on any violation that is not listed here AND on any listed id that no longer occurs, so
+# fixing a gap means deleting its line in the same change. The goal is an empty list (comments only).

@@ -5,6 +5,9 @@ kotlinx-coroutines = "1.10.2"
 kotlinx-io = "0.7.0"
 jsonrpc4k = "0.1.0-SNAPSHOT"
 
+# Conformance (jvmTest only, never published)
+smithy = "1.49.0"
+
 # Linting
 detekt = "1.23.8"
 spotless = "8.1.0"
@@ -38,6 +41,7 @@ detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", 
 kotest-framework-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
+smithy-model = { module = "software.amazon.smithy:smithy-model", version.ref = "smithy" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 
 [plugins]
