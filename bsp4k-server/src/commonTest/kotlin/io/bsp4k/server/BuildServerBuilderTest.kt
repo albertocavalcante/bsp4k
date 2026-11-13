@@ -280,14 +280,15 @@ class BuildServerBuilderTest {
     }
 
     @Test
-    fun `buildTarget debugSession handler registration`() {
+    fun `debugSession start handler registration`() {
         val config =
             buildServer {
                 buildTarget {
                     debugSession { _ -> error("stub") }
                 }
             }
-        config.requestHandlers shouldContainKey BspMethods.BUILD_TARGET_DEBUG_SESSION
+        config.requestHandlers shouldContainKey BspMethods.DEBUG_SESSION_START
+        config.requestHandlers shouldContainKey "debugSession/start"
     }
 
     // ==================== Workspace Handler Registration Tests ====================

@@ -360,7 +360,7 @@ public class BuildServerProxy internal constructor(
 
     /** Start a debug session for a build target. */
     public suspend fun debugSession(params: DebugSessionParams): DebugSessionAddress? =
-        request(BspMethods.BUILD_TARGET_DEBUG_SESSION, params)
+        request(BspMethods.DEBUG_SESSION_START, params)
 
     // ===== JVM Extensions =====
 

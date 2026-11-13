@@ -23,7 +23,10 @@ public object BspMethods {
     public const val BUILD_TARGET_TEST: String = "buildTarget/test"
     public const val BUILD_TARGET_RUN: String = "buildTarget/run"
     public const val BUILD_TARGET_CLEAN_CACHE: String = "buildTarget/cleanCache"
-    public const val BUILD_TARGET_DEBUG_SESSION: String = "buildTarget/debugSession"
+    public const val DEBUG_SESSION_START: String = "debugSession/start"
+
+    @Deprecated("The BSP method is debugSession/start", ReplaceWith("DEBUG_SESSION_START"))
+    public const val BUILD_TARGET_DEBUG_SESSION: String = DEBUG_SESSION_START
 
     // Notifications (server -> client)
     public const val BUILD_LOG_MESSAGE: String = "build/logMessage"
