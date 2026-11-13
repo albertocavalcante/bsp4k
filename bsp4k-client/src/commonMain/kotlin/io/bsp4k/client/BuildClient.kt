@@ -38,9 +38,12 @@ import io.bsp4k.protocol.TaskStartParams
 import io.bsp4k.protocol.TestParams
 import io.bsp4k.protocol.TestResult
 import io.bsp4k.protocol.WorkspaceBuildTargetsResult
+import io.jsonrpc4k.core.BoundedDispatchPolicy
 import io.jsonrpc4k.core.Connection
+import io.jsonrpc4k.core.InboundResourceLimits
 import io.jsonrpc4k.core.JsonRpcCodec
 import io.jsonrpc4k.core.NotificationHandler
+import io.jsonrpc4k.core.OutboundResourceLimits
 import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -280,8 +283,10 @@ public class BuildClientSession internal constructor(
     }
 
     /**
-     * Waits for session jobs to stop. Returns the first read or write failure, or null on EOF,
-     * explicit close, graceful exit, or parent cancellation. The transport remains caller-owned
+     * Waits for session jobs to stop. Returns a terminal read, write, or bounded core failure,
+     * or null on EOF, explicit close, graceful exit, or parent cancellation. The session records
+     * its first observed end, then closes the core; a core failure claimed before that close
+     * takes precedence. Concurrent sources do not have a global first-event ordering. The transport remains caller-owned
      * and its suspending operations must cooperate with coroutine cancellation. A caller may
      * need to close its transport to unblock a blocking read before this function can return.
      */
@@ -384,11 +389,28 @@ public fun buildClient(block: BuildClientBuilder.() -> Unit): BuildClientConfig 
 public suspend fun BuildClientConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+): BuildClientSession = startSession(transport, SessionLifecycle(scope))
+
+/**
+ * Starts an explicitly bounded session using the fixed default JSON codec.
+ * Limits are wire-size proxies, not a total heap bound. The supplied scope and transport remain
+ * caller-owned. A transport collector must not await reentrant sends on the same connection.
+ */
+public suspend fun BuildClientConfig.start(
+    transport: Transport,
+    policy: BoundedDispatchPolicy,
+    inboundLimits: InboundResourceLimits,
+    outboundLimits: OutboundResourceLimits,
+    scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+): BuildClientSession = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
+
+private suspend fun BuildClientConfig.startSession(
+    transport: Transport,
+    lifecycle: SessionLifecycle,
 ): BuildClientSession {
-    notificationHandlers.keys.forEach(::requireNotReserved)
-    val lifecycle = SessionLifecycle(scope)
     val session = BuildClientSession(this, lifecycle.connection, lifecycle)
     try {
+        notificationHandlers.keys.forEach(::requireNotReserved)
         session.setup()
         lifecycle.start(transport)
     } catch (failure: Throwable) {

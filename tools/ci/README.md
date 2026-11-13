@@ -4,6 +4,8 @@
 
 Before any remote upload, the publication workflow runs the same publication tasks against a private file repository with composite substitution disabled and dependencies refreshed. If a dependency needed by the Linux publication task graph cannot be resolved, preflight fails before remote publication begins. POM and module metadata generation alone does not resolve every runtime or native variant. This check cannot make remote publication atomic or guarantee registry availability after it completes.
 
+The fixture exercises bounded-client/legacy-server and legacy-client/bounded-server handshakes. Its JSON-RPC binaries come from the pinned source, so it does not prove that the declared published JSON-RPC version contains the bounded-session policy and limit APIs. Before release, verify the actual published version and registry with a clean Java 17 consumer.
+
 The publication workflow also disables composite substitution. It therefore requires the declared JSON-RPC artifacts to be independently resolvable; publication can fail until those artifacts and registry access are available. The fixture does not publish packages, prove registry availability, or execute native targets.
 
 

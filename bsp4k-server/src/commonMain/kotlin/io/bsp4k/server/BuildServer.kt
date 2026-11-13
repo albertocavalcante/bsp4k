@@ -43,10 +43,13 @@ import io.bsp4k.protocol.TestParams
 import io.bsp4k.protocol.TestProvider
 import io.bsp4k.protocol.TestResult
 import io.bsp4k.protocol.WorkspaceBuildTargetsResult
+import io.jsonrpc4k.core.BoundedDispatchPolicy
 import io.jsonrpc4k.core.Connection
+import io.jsonrpc4k.core.InboundResourceLimits
 import io.jsonrpc4k.core.JsonRpcCodec
 import io.jsonrpc4k.core.JsonRpcException
 import io.jsonrpc4k.core.NotificationHandler
+import io.jsonrpc4k.core.OutboundResourceLimits
 import io.jsonrpc4k.core.RequestHandler
 import io.jsonrpc4k.core.ResponseError
 import io.jsonrpc4k.transport.Transport
@@ -527,8 +530,10 @@ public class BuildServer internal constructor(
     public fun close(): Unit = lifecycle.close()
 
     /**
-     * Waits for session jobs to stop. Returns the first read or write failure, or null on EOF,
-     * explicit close, graceful exit, or parent cancellation. The transport remains caller-owned
+     * Waits for session jobs to stop. Returns a terminal read, write, or bounded core failure,
+     * or null on EOF, explicit close, graceful exit, or parent cancellation. The session records
+     * its first observed end, then closes the core; a core failure claimed before that close
+     * takes precedence. Concurrent sources do not have a global first-event ordering. The transport remains caller-owned
      * and its suspending operations must cooperate with coroutine cancellation. A caller may
      * need to close its transport to unblock a blocking read before this function can return.
      */
@@ -659,12 +664,29 @@ public fun buildServer(block: BuildServerBuilder.() -> Unit): BuildServerConfig 
 public suspend fun BuildServerConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+): BuildServer = startSession(transport, SessionLifecycle(scope))
+
+/**
+ * Starts an explicitly bounded session using the fixed default JSON codec.
+ * Limits are wire-size proxies, not a total heap bound. The supplied scope and transport remain
+ * caller-owned. A transport collector must not await reentrant sends on the same connection.
+ */
+public suspend fun BuildServerConfig.start(
+    transport: Transport,
+    policy: BoundedDispatchPolicy,
+    inboundLimits: InboundResourceLimits,
+    outboundLimits: OutboundResourceLimits,
+    scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+): BuildServer = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
+
+private suspend fun BuildServerConfig.startSession(
+    transport: Transport,
+    lifecycle: SessionLifecycle,
 ): BuildServer {
-    requestHandlers.keys.forEach { requireNotReserved(it, reservedRequests) }
-    notificationHandlers.keys.forEach { requireNotReserved(it, reservedNotifications) }
-    val lifecycle = SessionLifecycle(scope)
     val server = BuildServer(this, lifecycle.connection, lifecycle)
     try {
+        requestHandlers.keys.forEach { requireNotReserved(it, reservedRequests) }
+        notificationHandlers.keys.forEach { requireNotReserved(it, reservedNotifications) }
         server.setup()
         lifecycle.start(transport)
     } catch (failure: Throwable) {

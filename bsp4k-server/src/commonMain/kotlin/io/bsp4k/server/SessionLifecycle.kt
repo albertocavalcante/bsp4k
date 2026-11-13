@@ -1,6 +1,7 @@
 package io.bsp4k.server
 
 import io.jsonrpc4k.core.Connection
+import io.jsonrpc4k.core.ConnectionState
 import io.jsonrpc4k.transport.Transport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +17,7 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Owns session jobs; the supplied scope and transport remain caller-owned. */
 internal class SessionLifecycle(
     parent: CoroutineScope,
+    connectionFactory: (CoroutineScope) -> Connection = { Connection(scope = it) },
 ) {
     private data class End(
         val cause: Throwable?,
@@ -23,18 +25,25 @@ internal class SessionLifecycle(
 
     private val job = SupervisorJob(parent.coroutineContext[Job])
     private val scope = CoroutineScope(parent.coroutineContext + job)
-    val connection = Connection(scope = scope)
+    val connection = connectionFactory(scope)
     private val end = MutableStateFlow<End?>(null)
     private val terminated = CompletableDeferred<Throwable?>()
 
     init {
         job.invokeOnCompletion {
+            val observed = (connection.state.value as? ConnectionState.Failed)?.cause
+            end.compareAndSet(null, End(observed))
             connection.close()
             terminated.complete(end.value?.cause)
         }
     }
 
     fun start(transport: Transport) {
+        scope.launch {
+            connection.state.collect { state ->
+                if (state is ConnectionState.Failed) finish(state.cause)
+            }
+        }
         scope.launch { runPump { transport.incoming.collect { connection.receive(it) } } }
         scope.launch { runPump { connection.outgoing.collect { transport.send(it) } } }
     }
@@ -72,7 +81,8 @@ internal class SessionLifecycle(
     }
 
     private fun finish(cause: Throwable?) {
-        if (end.compareAndSet(null, End(cause))) {
+        val observed = (connection.state.value as? ConnectionState.Failed)?.cause ?: cause
+        if (end.compareAndSet(null, End(observed))) {
             connection.close()
             job.cancel()
         }
