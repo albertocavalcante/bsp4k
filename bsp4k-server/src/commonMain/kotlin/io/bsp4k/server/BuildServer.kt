@@ -379,9 +379,9 @@ public class BuildTargetHandlersBuilder(
         registerRequest(BspMethods.BUILD_TARGET_CLEAN_CACHE, handler)
     }
 
-    /** Registers a handler for `buildTarget/debugSession` requests. */
+    /** Registers a handler for `debugSession/start` requests. */
     public fun debugSession(handler: suspend (DebugSessionParams) -> DebugSessionAddress) {
-        registerRequest(BspMethods.BUILD_TARGET_DEBUG_SESSION, handler)
+        registerRequest(BspMethods.DEBUG_SESSION_START, handler)
     }
 }
 

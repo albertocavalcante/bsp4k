@@ -91,8 +91,8 @@ class BspMethodsTest {
     }
 
     @Test
-    fun `BUILD_TARGET_DEBUG_SESSION matches spec`() {
-        BspMethods.BUILD_TARGET_DEBUG_SESSION shouldBe "buildTarget/debugSession"
+    fun `DEBUG_SESSION_START matches spec`() {
+        BspMethods.DEBUG_SESSION_START shouldBe "debugSession/start"
     }
 
     // ==================== Notifications ====================

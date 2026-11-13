@@ -359,8 +359,7 @@ public class BuildServerProxy internal constructor(
     public suspend fun cleanCache(params: CleanCacheParams): CleanCacheResult? = request(BspMethods.BUILD_TARGET_CLEAN_CACHE, params)
 
     /** Start a debug session for a build target. */
-    public suspend fun debugSession(params: DebugSessionParams): DebugSessionAddress? =
-        request(BspMethods.BUILD_TARGET_DEBUG_SESSION, params)
+    public suspend fun debugSession(params: DebugSessionParams): DebugSessionAddress? = request(BspMethods.DEBUG_SESSION_START, params)
 
     // ===== JVM Extensions =====
 
