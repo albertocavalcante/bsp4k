@@ -1,6 +1,6 @@
 package io.bsp4k.protocol
 
-/** BSP 2.1 method name constants. */
+/** BSP 2.2 method name constants. */
 public object BspMethods {
     // Lifecycle
     public const val BUILD_INITIALIZE: String = "build/initialize"

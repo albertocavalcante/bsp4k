@@ -104,7 +104,7 @@ class SessionOwnershipTest {
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = ScriptedTransport()
             val session = buildClient {}.start(transport, scope)
-            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
             runCurrent()
             transport.messages.close()
             runCurrent()
@@ -126,7 +126,7 @@ class SessionOwnershipTest {
             val failure = IllegalStateException("send failure")
             val transport = ScriptedTransport(failure = failure)
             val session = buildClient {}.start(transport, scope)
-            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
             runCurrent()
 
             assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
@@ -150,7 +150,7 @@ class SessionOwnershipTest {
             val scope = CoroutineScope(backgroundScope.coroutineContext + handler + parent)
             val failure = AssertionError("fatal transport failure")
             val session = buildClient {}.start(ScriptedTransport(failure = failure), scope)
-            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
             runCurrent()
             assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
             val terminal = withTimeout(5_000) { session.awaitTermination() }
@@ -169,7 +169,7 @@ class SessionOwnershipTest {
             val failure = CancellationException("transport stopped")
             val transport = ScriptedTransport(failure = failure)
             val session = buildClient {}.start(transport, scope)
-            val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+            val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
             runCurrent()
             assertTrue(withTimeout(5_000) { pending.await() }.isFailure)
             val terminal = withTimeout(5_000) { session.awaitTermination() }

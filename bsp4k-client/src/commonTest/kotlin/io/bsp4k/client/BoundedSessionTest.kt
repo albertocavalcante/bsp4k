@@ -43,7 +43,7 @@ class BoundedSessionTest {
             val config =
                 buildClient {
                     onNotification("test/reverse") {
-                        session.server.workspaceBuildTargets()
+                        session.assumeInitialized().server.workspaceBuildTargets()
                         done.complete(Unit)
                     }
                 }
@@ -71,7 +71,7 @@ class BoundedSessionTest {
             val config =
                 buildClient {
                     onNotification("test/reverse") {
-                        session.server.workspaceBuildTargets()
+                        session.assumeInitialized().server.workspaceBuildTargets()
                         done.complete(Unit)
                     }
                 }
@@ -95,7 +95,7 @@ class BoundedSessionTest {
             val transport = BoundedClientTransport(respond = false)
             val session = buildClient {}.start(transport, policy(), inbound(), outbound(), scope)
             try {
-                val pending = async { runCatching { session.server.workspaceBuildTargets() } }
+                val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
                 runCurrent()
                 transport.incomingFrames.send("Content-Length: 4097\r\n\r\n".encodeToByteArray())
                 val terminal = withTimeout(5_000) { session.awaitTermination() }
@@ -185,7 +185,7 @@ class BoundedSessionTest {
                 val pending =
                     async(UnconfinedTestDispatcher(testScheduler)) {
                         try {
-                            runCatching { session.server.workspaceBuildTargets() }
+                            runCatching { session.assumeInitialized().server.workspaceBuildTargets() }
                         } finally {
                             session.close()
                         }
@@ -225,7 +225,7 @@ class BoundedSessionTest {
                 val pending =
                     async(UnconfinedTestDispatcher(testScheduler)) {
                         try {
-                            runCatching { session.server.workspaceBuildTargets() }
+                            runCatching { session.assumeInitialized().server.workspaceBuildTargets() }
                         } finally {
                             session.close()
                         }
