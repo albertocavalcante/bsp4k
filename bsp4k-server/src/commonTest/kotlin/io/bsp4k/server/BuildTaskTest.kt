@@ -88,7 +88,7 @@ class BuildTaskTest {
 
             assertEquals(encode(CompileResult.serializer(), CompileResult("o-1", StatusCode.Ok)), response.result)
             val start = peer.nextStart()
-            assertEquals(TaskId("compile-1", listOf("o-1")), start.taskId)
+            assertEquals(TaskId("compile-1"), start.taskId)
             assertEquals("o-1", start.originId)
             assertEquals("Compiling", start.message)
             assertEquals(CompileTask(target), start.decodeData(TaskStartDataKind.compileTask))
@@ -164,7 +164,7 @@ class BuildTaskTest {
             server.client.logMessage(MessageType.Log, "after")
 
             peer.nextStart()
-            val finish = TaskFinishParams(TaskId("once", listOf("o-4")), "o-4", message = "first", status = StatusCode.Error)
+            val finish = TaskFinishParams(TaskId("once"), "o-4", message = "first", status = StatusCode.Error)
             assertEquals(finish, peer.nextFinish())
             assertEquals("after", peer.next(BspMethods.BUILD_LOG_MESSAGE, LogMessageParams.serializer()).message)
         }
@@ -181,7 +181,7 @@ class BuildTaskTest {
                 }
             }
 
-            assertEquals(TaskId("parent", listOf("o-5")), peer.nextStart().taskId)
+            assertEquals(TaskId("parent"), peer.nextStart().taskId)
             val child = peer.nextStart()
             assertEquals(TaskId("child", listOf("parent")), child.taskId)
             assertEquals("o-5", child.originId)
@@ -189,7 +189,7 @@ class BuildTaskTest {
             val childFinish = peer.nextFinish()
             assertEquals(TaskId("child", listOf("parent")), childFinish.taskId)
             assertEquals(TestReport(target, "o-5", 1, 0, 0, 0, 0), childFinish.decodeData(TaskFinishDataKind.testReport))
-            assertEquals(TaskId("parent", listOf("o-5")), peer.nextFinish().taskId)
+            assertEquals(TaskId("parent"), peer.nextFinish().taskId)
         }
 
     @Test
@@ -207,7 +207,7 @@ class BuildTaskTest {
             }
 
             peer.nextStart()
-            val task = TaskId("run", listOf("o-6"))
+            val task = TaskId("run")
             assertEquals(PrintParams("o-6", task, "out"), peer.next(BspMethods.RUN_PRINT_STDOUT, PrintParams.serializer()))
             assertEquals(PrintParams("o-6", task, "err"), peer.next(BspMethods.RUN_PRINT_STDERR, PrintParams.serializer()))
             peer.nextFinish()
@@ -267,7 +267,7 @@ class BuildTaskTest {
             peer.notify(BspMethods.CANCEL_REQUEST, JsonObject(mapOf("id" to JsonPrimitive(number))))
 
             assertError(ResponseError.REQUEST_CANCELLED, peer.response(id))
-            assertEquals(TaskId("slow", listOf("o-7")), peer.nextStart().taskId)
+            assertEquals(TaskId("slow"), peer.nextStart().taskId)
             assertEquals(StatusCode.Cancelled, peer.nextFinish().status)
             server.close()
         }

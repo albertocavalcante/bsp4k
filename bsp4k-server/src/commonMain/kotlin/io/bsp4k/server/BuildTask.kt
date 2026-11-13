@@ -135,8 +135,9 @@ public class BuildTask internal constructor(
 }
 
 /**
- * Start params for a task spawned directly by a client request. BSP asks such a task to list the request's
- * [originId] as its parent, and [BuildClientProxy.withTask] echoes [originId] in every notification of the task.
+ * Start params for a task spawned directly by a client request. The request's [originId] goes in the
+ * separate `originId` field, not in [TaskId.parents] (BSP 2.2 `TaskId.parents`: "OriginId should not be
+ * included in the parents field"), and [BuildClientProxy.withTask] echoes it in every notification of the task.
  */
 public fun requestTaskStart(
     id: String,
@@ -144,7 +145,7 @@ public fun requestTaskStart(
     message: String? = null,
 ): TaskStartParams =
     TaskStartParams(
-        taskId = TaskId(id = id, parents = originId?.let { listOf(it) }),
+        taskId = TaskId(id = id),
         originId = originId,
         message = message,
     )
