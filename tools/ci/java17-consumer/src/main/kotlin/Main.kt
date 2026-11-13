@@ -29,13 +29,13 @@ fun main() =
                     if (iteration == 0) {
                         serverConfig.start(serverTransport, this)
                     } else {
-                        serverConfig.start(serverTransport, policy, inbound, outbound, this)
+                        serverConfig.start(serverTransport, this, policy, inbound, outbound)
                     }
                 val client =
                     if (iteration == 0) {
-                        clientConfig.start(clientTransport, policy, inbound, outbound, this)
-                    } else {
                         clientConfig.start(clientTransport, this)
+                    } else {
+                        clientConfig.start(clientTransport, this, policy, inbound, outbound)
                     }
                 try {
                     check(client.initialize().displayName == "fixture-server")

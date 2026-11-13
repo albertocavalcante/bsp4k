@@ -80,7 +80,7 @@ public class BuildTargetHandlersBuilder internal constructor(
     /**
      * Handles `buildTarget/run`; requires `runProvider`. Forward process output with
      * [BuildClientProxy.printStdout] and [BuildClientProxy.printStderr]. BSP asks a cancelled run to kill
-     * its process: in a bounded session `$/cancelRequest` cancels this handler's coroutine.
+     * its process: `$/cancelRequest` cancels this handler's coroutine.
      */
     public fun run(handler: suspend BuildServerContext.(RunParams) -> RunResult) {
         registry.handleRequest(BspMethods.BUILD_TARGET_RUN, handler)

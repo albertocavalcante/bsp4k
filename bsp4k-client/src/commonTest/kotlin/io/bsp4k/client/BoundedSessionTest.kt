@@ -47,7 +47,7 @@ class BoundedSessionTest {
                         done.complete(Unit)
                     }
                 }
-            session = config.start(transport, policy(), inbound(), outbound(), scope)
+            session = config.start(transport, scope, policy(), inbound(), outbound())
             try {
                 transport.incomingFrames.send(frame("""{"jsonrpc":"2.0","method":"test/reverse"}"""))
                 withTimeout(5_000) { done.await() }
@@ -61,39 +61,13 @@ class BoundedSessionTest {
         }
 
     @Test
-    fun `legacy synchronous session keeps its existing reverse-call behavior`() =
-        runTest {
-            val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
-            val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
-            val transport = BoundedClientTransport()
-            val done = CompletableDeferred<Unit>()
-            lateinit var session: BuildClientSession
-            val config =
-                buildClient {
-                    onNotification("test/reverse") {
-                        session.assumeInitialized().server.workspaceBuildTargets()
-                        done.complete(Unit)
-                    }
-                }
-            session = config.start(transport, scope)
-            try {
-                transport.incomingFrames.send(frame("""{"jsonrpc":"2.0","method":"test/reverse"}"""))
-                runCurrent()
-                assertFalse(done.isCompleted)
-            } finally {
-                session.close()
-                parent.cancel()
-            }
-        }
-
-    @Test
     fun `core frame failure terminates session with original cause and cleans pending call`() =
         runTest {
             val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
             val sibling = Job(parent)
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = BoundedClientTransport(respond = false)
-            val session = buildClient {}.start(transport, policy(), inbound(), outbound(), scope)
+            val session = buildClient {}.start(transport, scope, policy(), inbound(), outbound())
             try {
                 val pending = async { runCatching { session.assumeInitialized().server.workspaceBuildTargets() } }
                 runCurrent()
@@ -121,7 +95,7 @@ class BoundedSessionTest {
                         val value = assertIs<JsonPrimitive>(assertIs<JsonObject>(params)["text"])
                         received.complete(value.content)
                     }
-                }.start(transport, policy(), inbound(), outbound(), backgroundScope)
+                }.start(transport, backgroundScope, policy(), inbound(), outbound())
             try {
                 val text = "é".repeat(1500)
                 val body = """{"jsonrpc":"2.0","method":"test/large","params":{"text":"$text"}}"""
@@ -138,7 +112,7 @@ class BoundedSessionTest {
             val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = BoundedClientTransport(respond = false)
-            val session = buildClient {}.start(transport, policy(), inbound(), outbound(), scope)
+            val session = buildClient {}.start(transport, scope, policy(), inbound(), outbound())
             parent.cancel()
             assertEquals(null, withTimeout(5_000) { session.awaitTermination() })
             assertFalse(transport.closed)
@@ -176,10 +150,10 @@ class BoundedSessionTest {
                     }
                 }.start(
                     transport,
+                    scope,
                     BoundedDispatchPolicy(1, 2),
                     inbound(),
                     OutboundResourceLimits(1024, 1024, 1, 8, 1024, 1, 1024, 32),
-                    scope,
                 )
             try {
                 val pending =
@@ -220,7 +194,7 @@ class BoundedSessionTest {
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val failure = IllegalStateException("transport write failed")
             val transport = BoundedClientTransport(respond = false, blockWrites = true, writeFailure = failure)
-            val session = buildClient {}.start(transport, policy(), inbound(), outbound(), scope)
+            val session = buildClient {}.start(transport, scope, policy(), inbound(), outbound())
             try {
                 val pending =
                     async(UnconfinedTestDispatcher(testScheduler)) {
@@ -252,7 +226,7 @@ class BoundedSessionTest {
             val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = BoundedClientTransport(respond = false)
-            val session = buildClient {}.start(transport, policy(), inbound(), outbound(), scope)
+            val session = buildClient {}.start(transport, scope, policy(), inbound(), outbound())
             try {
                 session.close()
                 transport.incomingFrames.send("Content-Length: 4097\r\n\r\n".encodeToByteArray())

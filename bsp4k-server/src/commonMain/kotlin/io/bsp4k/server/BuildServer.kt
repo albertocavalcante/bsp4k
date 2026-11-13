@@ -34,9 +34,9 @@ public class BuildServerContext internal constructor(
  * `build/shutdown` and `build/exit` itself, following [BuildServerState], and calls the configured
  * [LifecycleHooks]. Application handlers run only in [BuildServerState.Running].
  *
- * Inbound `$/cancelRequest` is handled by jsonrpc4k before any handler: a bounded session answers the
- * cancelled request with RequestCancelled (-32800) and cancels its handler coroutine, while an unbounded
- * session ignores it.
+ * Inbound `$/cancelRequest` is handled by jsonrpc4k before any handler: the session answers the
+ * cancelled request with RequestCancelled (-32800) and cancels its handler coroutine, so handlers
+ * should stay cooperative with coroutine cancellation (suspend, or check `ensureActive`).
  */
 public class BuildServer internal constructor(
     private val config: BuildServerConfig,
@@ -161,27 +161,22 @@ public class BuildServer internal constructor(
  * The returned [BuildServer] is fully wired: incoming transport data is
  * decoded and dispatched, and outgoing messages are forwarded to the transport.
  * The supplied scope and transport remain caller-owned; closing a session does not close the transport.
- * Requests run one at a time in arrival order, and inbound `$/cancelRequest` is ignored.
+ *
+ * Dispatch is concurrent and bounded by [policy] (default: 16 concurrent requests, 256 queued messages).
+ * A notification is a barrier: earlier requests finish before it runs and later messages wait for it,
+ * so `build/initialized` precedes later requests and notifications keep their order. Inbound
+ * `$/cancelRequest` answers the request with RequestCancelled (-32800) and cancels its handler coroutine.
+ * A request arriving when the queue is full receives a server-busy error.
+ * [inboundLimits] and [outboundLimits] are wire-size proxies, not a total heap bound; typed payload
+ * conversion to JSON happens before outbound admission and is outside them. A transport collector
+ * must not await reentrant sends on the same connection.
  */
 public suspend fun BuildServerConfig.start(
     transport: Transport,
     scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-): BuildServer = startSession(transport, SessionLifecycle(scope))
-
-/**
- * Starts an explicitly bounded session using the fixed default JSON codec.
- * Limits are wire-size proxies, not a total heap bound. Typed payload conversion to JSON happens
- * before outbound admission and is outside these limits. The supplied scope and transport remain
- * caller-owned. A transport collector must not await reentrant sends on the same connection.
- * Requests may run concurrently up to [policy]; inbound `$/cancelRequest` answers the request with
- * RequestCancelled (-32800) and cancels its handler coroutine.
- */
-public suspend fun BuildServerConfig.start(
-    transport: Transport,
-    policy: BoundedDispatchPolicy,
-    inboundLimits: InboundResourceLimits,
-    outboundLimits: OutboundResourceLimits,
-    scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+    policy: BoundedDispatchPolicy = SessionDefaults.policy,
+    inboundLimits: InboundResourceLimits = SessionDefaults.inboundLimits,
+    outboundLimits: OutboundResourceLimits = SessionDefaults.outboundLimits,
 ): BuildServer = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
 
 private suspend fun BuildServerConfig.startSession(

@@ -57,9 +57,11 @@ and `onNotification` in `buildClient { }`.
   `.bsp` directory and then in the user and system `bsp` data directories, skipping invalid files with
   a reported reason. `BuildClientConfig.launch(details, workspaceRoot)` starts the server through
   `ProcessTransport` and returns a `LaunchedBuildServer` that owns the child process.
-- **Sessions:** `start(transport)` runs requests one at a time in arrival order; the overload
-  with a `BoundedDispatchPolicy` and resource limits runs them concurrently within bounds and
-  honors `$/cancelRequest`.
+- **Sessions:** `start(transport)` runs requests concurrently within bounds (default 16 running,
+  256 queued; override with `policy`, `inboundLimits` and `outboundLimits`) and honors `$/cancelRequest`:
+  a cancelled request is answered with RequestCancelled (-32800) and its handler coroutine is cancelled.
+  Notifications are ordering barriers, so `build/initialized` runs before later requests and
+  task notifications arrive in order.
 
 ## Quick start
 
@@ -122,6 +124,11 @@ requests after `build/shutdown` and a second `build/initialize` fail with Invali
 InvalidParams (-32602). See `example/` for a complete server with destinations, `run/print`
 output and the JVM extension.
 
+Requests run concurrently, so a long `buildTarget/compile` does not block `workspace/buildTargets`,
+and `$/cancelRequest` cancels the running handler (the client gets RequestCancelled, -32800).
+Tune it with `config.start(transport, scope, policy = BoundedDispatchPolicy(4, 64))`; the
+`inboundLimits` and `outboundLimits` parameters bound frame and retained message sizes.
+
 ### Client
 
 ```kotlin
@@ -164,8 +171,8 @@ destinations, an extension request, `buildTarget/didChange` and shutdown.
 - `run/readStdin` cannot reach a `buildTarget/run` that is still running: jsonrpc4k dispatches a
   notification only after earlier requests finish.
 - `run/printStdout`, `run/printStderr` and `run/readStdin` are unstable in BSP 2.2.0 and may change.
-- Without a `BoundedDispatchPolicy` a session runs requests one at a time and ignores
-  `$/cancelRequest`.
+- Handlers must cooperate with coroutine cancellation (suspend or `ensureActive`); a blocking handler
+  keeps its concurrency slot until it returns, although its request is answered as cancelled.
 - Per-target transport support (stdio, sockets) is whatever jsonrpc4k provides on that target.
 - Not published to Maven Central yet; the API is unstable.
 

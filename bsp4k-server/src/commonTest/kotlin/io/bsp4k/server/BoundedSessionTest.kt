@@ -53,7 +53,7 @@ class BoundedSessionTest {
                         null
                     }
                 }
-            val server = config.start(transport, policy(), inbound(), outbound(), scope)
+            val server = config.start(transport, scope, policy(), inbound(), outbound())
             try {
                 initialize(transport)
                 transport.incomingFrames.send(frame("""{"jsonrpc":"2.0","id":2,"method":"test/hold"}"""))
@@ -87,7 +87,7 @@ class BoundedSessionTest {
             val server =
                 buildServer {
                     onRequest("test/large") { JsonPrimitive("a".repeat(2048)) }
-                }.start(transport, policy(), inbound(), outbound(), scope)
+                }.start(transport, scope, policy(), inbound(), outbound())
             try {
                 initialize(transport)
                 transport.incomingFrames.send(frame("""{"jsonrpc":"2.0","id":2,"method":"test/large"}"""))
@@ -120,10 +120,10 @@ class BoundedSessionTest {
                     }
                 }.start(
                     transport,
+                    scope,
                     BoundedDispatchPolicy(1, 2),
                     inbound(),
                     OutboundResourceLimits(1024, 1024, 1, 8, 1024, 1, 1024, 32),
-                    scope,
                 )
             try {
                 initialize(transport)

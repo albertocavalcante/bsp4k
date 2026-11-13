@@ -18,7 +18,7 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Owns session jobs; the supplied scope and transport remain caller-owned. */
 internal class SessionLifecycle(
     parent: CoroutineScope,
-    connectionFactory: (CoroutineScope) -> Connection = { Connection(scope = it) },
+    connectionFactory: (CoroutineScope) -> Connection,
 ) {
     private data class End(
         val cause: Throwable?,
