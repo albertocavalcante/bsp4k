@@ -21,6 +21,7 @@ internal class SessionLifecycle(
 ) {
     private data class End(
         val cause: Throwable?,
+        val resolved: Boolean,
     )
 
     private val job = SupervisorJob(parent.coroutineContext[Job])
@@ -31,10 +32,8 @@ internal class SessionLifecycle(
 
     init {
         job.invokeOnCompletion {
-            val observed = (connection.state.value as? ConnectionState.Failed)?.cause
-            end.compareAndSet(null, End(observed))
-            connection.close()
-            terminated.complete(end.value?.cause)
+            end.compareAndSet(null, End(null, resolved = false))
+            terminated.complete(resolveEnd().cause)
         }
     }
 
@@ -81,10 +80,29 @@ internal class SessionLifecycle(
     }
 
     private fun finish(cause: Throwable?) {
-        val observed = (connection.state.value as? ConnectionState.Failed)?.cause ?: cause
-        if (end.compareAndSet(null, End(observed))) {
-            connection.close()
-            job.cancel()
+        // Reserve the session outcome before close wakes other pumps or callers. Closing the
+        // core may materialize an earlier core terminal claim that is not yet in its StateFlow.
+        if (end.compareAndSet(null, End(cause, resolved = false))) {
+            try {
+                resolveEnd()
+            } finally {
+                job.cancel()
+            }
+        }
+    }
+
+    private fun resolveEnd(): End {
+        connection.close()
+        while (true) {
+            val current = end.value
+            if (current == null) {
+                if (!end.compareAndSet(null, End(null, resolved = false))) continue
+                continue
+            }
+            if (current.resolved) return current
+            val coreFailure = (connection.state.value as? ConnectionState.Failed)?.cause
+            val resolved = End(coreFailure ?: current.cause, resolved = true)
+            if (end.compareAndSet(current, resolved)) return resolved
         }
     }
 }

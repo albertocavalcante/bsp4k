@@ -668,7 +668,8 @@ public suspend fun BuildServerConfig.start(
 
 /**
  * Starts an explicitly bounded session using the fixed default JSON codec.
- * Limits are wire-size proxies, not a total heap bound. The supplied scope and transport remain
+ * Limits are wire-size proxies, not a total heap bound. Typed payload conversion to JSON happens
+ * before outbound admission and is outside these limits. The supplied scope and transport remain
  * caller-owned. A transport collector must not await reentrant sends on the same connection.
  */
 public suspend fun BuildServerConfig.start(
