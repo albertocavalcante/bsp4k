@@ -1,11 +1,12 @@
 package io.bsp4k.protocol
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 
 class DiagnosticsSerializationTest {
-    private val json = Json { encodeDefaults = true }
+    private val json = wireJson
     private val jsonNoDefaults = Json
 
     @Test
@@ -127,8 +128,10 @@ class DiagnosticsSerializationTest {
                 textDocument = TextDocumentIdentifier(uri = "file:///src/Main.kt"),
                 buildTarget = BuildTargetIdentifier(uri = "file:///project/main"),
                 diagnostics = emptyList(),
+                reset = false,
             )
         val encoded = json.encodeToString(PublishDiagnosticsParams.serializer(), original)
+        encoded shouldContain "\"reset\":false"
         val decoded = json.decodeFromString(PublishDiagnosticsParams.serializer(), encoded)
         decoded shouldBe original
     }

@@ -27,7 +27,7 @@ public data class SourcesItem(
 public data class SourceItem(
     val uri: URI,
     val kind: SourceItemKind,
-    val generated: Boolean = false,
+    val generated: Boolean,
 )
 
 /** Whether a source item is a file or directory. */

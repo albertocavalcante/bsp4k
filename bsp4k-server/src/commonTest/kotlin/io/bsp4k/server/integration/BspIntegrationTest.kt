@@ -167,14 +167,18 @@ class BspIntegrationTest {
                             BuildTarget(
                                 id = BuildTargetIdentifier(uri = "file:///project/main"),
                                 displayName = "main",
+                                tags = emptyList(),
                                 capabilities = BuildTargetCapabilities(canCompile = true),
                                 languageIds = listOf("kotlin"),
+                                dependencies = emptyList(),
                             ),
                             BuildTarget(
                                 id = BuildTargetIdentifier(uri = "file:///project/test"),
                                 displayName = "test",
+                                tags = emptyList(),
                                 capabilities = BuildTargetCapabilities(canTest = true),
                                 languageIds = listOf("kotlin"),
+                                dependencies = emptyList(),
                             ),
                         ),
                 )
@@ -239,6 +243,7 @@ class BspIntegrationTest {
                                             SourceItem(
                                                 uri = "file:///src/Main.kt",
                                                 kind = SourceItemKind.File,
+                                                generated = false,
                                             ),
                                         ),
                                     roots = listOf("file:///src"),
@@ -445,6 +450,7 @@ class BspIntegrationTest {
                                 severity = DiagnosticSeverity.Error,
                             ),
                         ),
+                    reset = false,
                 )
 
             serverConnection.notify(

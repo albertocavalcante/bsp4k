@@ -1,18 +1,23 @@
 package io.bsp4k.protocol
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.json.Json
+import io.kotest.matchers.string.shouldContain
+import kotlinx.serialization.SerializationException
 import kotlin.test.Test
 
 class BuildTargetSerializationTest {
-    private val json = Json { encodeDefaults = true }
+    private val json = wireJson
 
     @Test
     fun `BuildTarget minimal roundtrips`() {
         val original =
             BuildTarget(
                 id = BuildTargetIdentifier(uri = "file:///project/main"),
+                tags = emptyList(),
                 capabilities = BuildTargetCapabilities(),
+                languageIds = emptyList(),
+                dependencies = emptyList(),
             )
         val encoded = json.encodeToString(BuildTarget.serializer(), original)
         val decoded = json.decodeFromString(BuildTarget.serializer(), encoded)
@@ -77,14 +82,18 @@ class BuildTargetSerializationTest {
                         BuildTarget(
                             id = BuildTargetIdentifier(uri = "file:///project/main"),
                             displayName = "main",
+                            tags = emptyList(),
                             capabilities = BuildTargetCapabilities(canCompile = true),
                             languageIds = listOf("kotlin"),
+                            dependencies = emptyList(),
                         ),
                         BuildTarget(
                             id = BuildTargetIdentifier(uri = "file:///project/test"),
                             displayName = "test",
+                            tags = emptyList(),
                             capabilities = BuildTargetCapabilities(canTest = true),
                             languageIds = listOf("kotlin"),
+                            dependencies = emptyList(),
                         ),
                     ),
             )
@@ -99,5 +108,34 @@ class BuildTargetSerializationTest {
         val encoded = json.encodeToString(WorkspaceBuildTargetsResult.serializer(), original)
         val decoded = json.decodeFromString(WorkspaceBuildTargetsResult.serializer(), encoded)
         decoded shouldBe original
+    }
+
+    @Test
+    fun `BuildTarget minimal always encodes required members`() {
+        val target =
+            BuildTarget(
+                id = BuildTargetIdentifier(uri = "file:///project/main"),
+                tags = emptyList(),
+                capabilities = BuildTargetCapabilities(),
+                languageIds = emptyList(),
+                dependencies = emptyList(),
+            )
+        val encoded = json.encodeToString(BuildTarget.serializer(), target)
+        encoded shouldContain "\"tags\":[]"
+        encoded shouldContain "\"languageIds\":[]"
+        encoded shouldContain "\"dependencies\":[]"
+    }
+
+    @Test
+    fun `SourceItem always encodes generated`() {
+        val item = SourceItem(uri = "file:///src/Main.kt", kind = SourceItemKind.File, generated = false)
+        json.encodeToString(SourceItem.serializer(), item) shouldContain "\"generated\":false"
+    }
+
+    @Test
+    fun `BuildTarget decode fails when required members are missing`() {
+        shouldThrow<SerializationException> {
+            json.decodeFromString(BuildTarget.serializer(), """{"id":{"uri":"file:///p"},"capabilities":{}}""")
+        }
     }
 }

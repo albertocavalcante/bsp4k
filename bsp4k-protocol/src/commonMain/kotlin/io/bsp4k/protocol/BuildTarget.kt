@@ -9,10 +9,10 @@ public data class BuildTarget(
     val id: BuildTargetIdentifier,
     val displayName: String? = null,
     val baseDirectory: URI? = null,
-    val tags: List<String> = emptyList(),
+    val tags: List<String>,
     val capabilities: BuildTargetCapabilities,
-    val languageIds: List<String> = emptyList(),
-    val dependencies: List<BuildTargetIdentifier> = emptyList(),
+    val languageIds: List<String>,
+    val dependencies: List<BuildTargetIdentifier>,
     val dataKind: String? = null,
     val data: JsonElement? = null,
 )
