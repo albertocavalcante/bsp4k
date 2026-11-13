@@ -1,5 +1,6 @@
 package io.bsp4k.client
 
+import io.bsp4k.protocol.BSP_VERSION
 import io.bsp4k.protocol.BspMethods
 import io.jsonrpc4k.core.NotificationHandler
 import io.kotest.matchers.maps.shouldContainKey
@@ -15,7 +16,7 @@ class BuildClientBuilderTest {
         val config = buildClient {}
         config.displayName shouldBe "bsp4k-client"
         config.version shouldBe "0.1.0"
-        config.bspVersion shouldBe "2.1.0"
+        config.bspVersion shouldBe BSP_VERSION
         config.rootUri shouldBe ""
         config.notificationHandlers shouldBe emptyMap()
     }
@@ -28,7 +29,7 @@ class BuildClientBuilderTest {
             }
         config.displayName shouldBe "test-client"
         config.version shouldBe "1.0.0"
-        config.bspVersion shouldBe "2.1.0"
+        config.bspVersion shouldBe BSP_VERSION
     }
 
     @Test

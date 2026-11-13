@@ -3,7 +3,7 @@
 [![CI](https://github.com/albertocavalcante/bsp4k/actions/workflows/ci.yml/badge.svg)](https://github.com/albertocavalcante/bsp4k/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/albertocavalcante/bsp4k)](LICENSE)
 
-Idiomatic Kotlin Multiplatform library for the [Build Server Protocol (BSP) 2.1](https://build-server-protocol.github.io/docs/specification).
+Idiomatic Kotlin Multiplatform library for the [Build Server Protocol (BSP) 2.2](https://build-server-protocol.github.io/docs/specification).
 
 ## Features
 
@@ -72,38 +72,37 @@ val server = config.start(transport)
 
 ```kotlin
 val config = buildClient {
-    clientInfo("my-ide", "2.0.0")
+    clientInfo("my-ide", "2.0.0") // bspVersion defaults to BSP_VERSION (2.2.0)
     rootUri("file:///path/to/project")
     capabilities(languageIds = listOf("kotlin", "java"))
 
-    onLogMessage { type, message ->
-        println("[$type] $message")
-    }
-
-    onTaskStart { params ->
-        println("Task started: ${params.message}")
-    }
-
-    onTaskFinish { params ->
-        println("Task finished: ${params.message}")
-    }
+    onLogMessage { params -> println("[${params.type}] ${params.message}") }
+    onTaskStart { params -> println("Task started: ${params.message}") }
+    onTaskFinish { params -> println("Task finished: ${params.message}") }
+    onPrintStdout { params -> print(params.message) }
 }
 
 val transport = TransportFactory.stdio()
 val session = config.start(transport)
-val initResult = session.initialize()
 
-// Query build targets
+// Validates the server result, then sends build/initialized.
+val init = session.initialize()
+println(init.capabilities)
+
+// Calls throw SessionStateException before initialize() and after shutdown()/close().
 val targets = session.server.workspaceBuildTargets()
+val compiled = session.server.compile(CompileParams(targets = targets.targets.map { it.id }))
 
-// Compile
-val compileResult = session.server.compile(
-    CompileParams(targets = listOf(myTarget))
-)
+// Per-call timeout (default 30 s) and extension namespaces.
+val javac = session.server.java.javacOptions(JavacOptionsParams(listOf(myTarget)), timeout = 5.seconds)
+session.server.cargo.setFeatures(SetCargoFeaturesParams("pkg", setOf("serde")))
 
 session.shutdown()
-session.close()
 ```
+
+Every BSP 2.2 client-to-server request and notification has a call on `session.server`
+(core, plus `jvm`, `java`, `scala`, `python`, `rust`, `cargo`, `cpp` namespaces and
+`readStdin`). Every server-to-client notification has an `on...` hook in `buildClient { }`.
 
 ## Installation
 

@@ -61,7 +61,7 @@ class PublicTransportTest {
                     val session = buildClient { rootUri("file:///fixture") }.start(transport, scope)
                     started = session
                     assertEquals("socket-π", withTimeout(8_000) { session.initialize() }.displayName)
-                    assertEquals(emptyList(), withTimeout(8_000) { session.server.workspaceBuildTargets() }?.targets)
+                    assertEquals(emptyList(), withTimeout(8_000) { session.server.workspaceBuildTargets() }.targets)
                     withTimeout(8_000) { session.shutdown() }
                     withTimeout(8_000) { peer.await() }
                     assertEquals(null, withTimeout(8_000) { session.awaitTermination() })
@@ -191,7 +191,7 @@ class PublicTransportTest {
                     val session = buildClient { rootUri("file:///fixture") }.start(transport, scope)
                     started = session
                     assertEquals("child-π", withTimeout(8_000) { session.initialize() }.displayName)
-                    assertEquals(emptyList(), withTimeout(8_000) { session.server.workspaceBuildTargets() }?.targets)
+                    assertEquals(emptyList(), withTimeout(8_000) { session.server.workspaceBuildTargets() }.targets)
                     withTimeout(8_000) { session.shutdown() }
                     assertTrue(withContext(Dispatchers.IO) { process.waitFor(5, TimeUnit.SECONDS) })
                     assertEquals(0, process.exitValue())
