@@ -14,8 +14,9 @@ public data class DidChangeBuildTarget(
 public data class BuildTargetEvent(
     val target: BuildTargetIdentifier,
     val kind: BuildTargetEventKind? = null,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
 
 /** The kind of change to a build target. */
 @Serializable(with = BuildTargetEventKindSerializer::class)

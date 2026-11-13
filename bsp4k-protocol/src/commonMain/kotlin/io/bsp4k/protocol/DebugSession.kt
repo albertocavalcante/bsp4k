@@ -7,9 +7,9 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 public data class DebugSessionParams(
     val targets: List<BuildTargetIdentifier>,
-    val dataKind: String? = null,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
 
 /** Result of the `debugSession/start` request. */
 @Serializable

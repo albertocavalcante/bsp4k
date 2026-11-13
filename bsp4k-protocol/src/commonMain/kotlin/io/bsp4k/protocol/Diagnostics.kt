@@ -47,13 +47,33 @@ internal object DiagnosticSeveritySerializer : IntEnumSerializer<DiagnosticSever
 public data class Diagnostic(
     val range: Range,
     val severity: DiagnosticSeverity? = null,
-    val code: String? = null,
+    val code: DiagnosticCode? = null,
+    val codeDescription: CodeDescription? = null,
     val source: String? = null,
     val message: String,
+    val tags: List<Int>? = null,
     val relatedInformation: List<DiagnosticRelatedInformation>? = null,
-    val dataKind: String? = null,
-    val data: JsonElement? = null,
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
+
+/** Structure to capture a description for an error code. */
+@Serializable
+public data class CodeDescription(
+    val href: URI,
 )
+
+/** Predefined diagnostic tags (open int enum: `Diagnostic.tags` keeps unknown values). */
+public object DiagnosticTag {
+    /** Unused or unnecessary code. */
+    public const val UNNECESSARY: Int = 1
+
+    /** Deprecated or obsolete code. */
+    public const val DEPRECATED: Int = 2
+
+    /** All values defined by BSP 2.2.0. */
+    public val entries: List<Int> = listOf(UNNECESSARY, DEPRECATED)
+}
 
 /** Related information for a diagnostic. */
 @Serializable

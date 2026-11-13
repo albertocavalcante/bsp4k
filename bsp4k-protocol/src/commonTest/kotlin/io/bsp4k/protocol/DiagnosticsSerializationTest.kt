@@ -71,7 +71,7 @@ class DiagnosticsSerializationTest {
                         end = Position(line = 5, character = 15),
                     ),
                 severity = DiagnosticSeverity.Error,
-                code = "KT001",
+                code = DiagnosticCode.StringCode("KT001"),
                 source = "kotlin",
                 message = "Type mismatch",
                 relatedInformation =

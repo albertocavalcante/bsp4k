@@ -11,8 +11,9 @@ public data class InitializeBuildParams(
     val bspVersion: String,
     val rootUri: URI,
     val capabilities: BuildClientCapabilities,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
 
 /** Result of the `build/initialize` request. */
 @Serializable
@@ -21,5 +22,6 @@ public data class InitializeBuildResult(
     val version: String,
     val bspVersion: String,
     val capabilities: BuildServerCapabilities,
-    val data: JsonElement? = null,
-)
+    override val dataKind: String? = null,
+    override val data: JsonElement? = null,
+) : BspDataCarrier
