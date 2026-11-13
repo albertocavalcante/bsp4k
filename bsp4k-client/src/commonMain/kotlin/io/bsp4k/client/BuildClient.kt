@@ -260,15 +260,16 @@ public class BuildClientSession internal constructor(
 
     /**
      * Requests shutdown and waits for the exit frame to be sent to the transport.
-     * This does not guarantee peer receipt. The caller may bound the wait with a timeout;
-     * cancellation aborts the session without closing the borrowed transport.
+     * This does not guarantee peer receipt. If the session ends first, for example because the
+     * server closes its side after reading `build/exit`, this returns normally or throws the
+     * terminal failure that [awaitTermination] reports. The caller may bound the wait with a
+     * timeout; cancellation aborts the session without closing the borrowed transport.
      */
     public suspend fun shutdown() {
         check(shutdownStarted.compareAndSet(false, true)) { "Shutdown already started" }
         try {
             connection.request<JsonElement?>(BspMethods.BUILD_SHUTDOWN, null)
-            connection.notify(BspMethods.BUILD_EXIT, null)
-            lifecycle.flushOutgoing()
+            lifecycle.exit { connection.notify(BspMethods.BUILD_EXIT, null) }
         } finally {
             lifecycle.close()
         }

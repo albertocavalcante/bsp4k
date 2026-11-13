@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
@@ -67,7 +68,24 @@ internal class SessionLifecycle(
 
     suspend fun awaitTermination(): Throwable? = terminated.await()
 
-    suspend fun flushOutgoing() {
+    /**
+     * Sends the final frame and waits until the writer returns it. If the session ends first, for
+     * example because the peer closes after reading that frame, the session outcome is the result.
+     */
+    suspend fun exit(send: suspend () -> Unit) {
+        try {
+            send()
+            flushOutgoing()
+        } catch (failure: Exception) {
+            // Session teardown cancels the core's queue and barriers, not this caller.
+            currentCoroutineContext().ensureActive()
+            if (end.value == null && connection.state.value is ConnectionState.Open) throw failure
+            finish(null)
+            resolveEnd().cause?.let { throw it }
+        }
+    }
+
+    private suspend fun flushOutgoing() {
         try {
             connection.flushOutgoing()
         } catch (cancelled: CancellationException) {
