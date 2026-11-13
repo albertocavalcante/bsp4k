@@ -156,7 +156,7 @@ class BoundedSessionTest {
                 """"bspVersion":"2.1.0","rootUri":"file:///fixture","capabilities":{"languageIds":[]}}}"""
         transport.incomingFrames.send(frame(body))
         val response = withTimeout(5_000) { transport.outgoingFrames.receive() }
-        assertIs<ResponseMessage>(JsonRpcMessageDecoder().feed(response).single())
+        assertIs<ResponseMessage>(JsonRpcMessageDecoder().feedMessages(response).single())
         transport.incomingFrames.send(frame("""{"jsonrpc":"2.0","method":"build/initialized"}"""))
     }
 

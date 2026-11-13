@@ -290,7 +290,7 @@ private class BoundedClientTransport(
         }
         writeFailure?.let { throw it }
         if (!respond) return
-        val request = JsonRpcMessageDecoder().feed(data).single() as RequestMessage
+        val request = JsonRpcMessageDecoder().feedMessages(data).single() as RequestMessage
         // The response envelope is literal wire JSON; only the numeric ID is copied.
         val number = assertIs<RequestId.NumberId>(request.id).value
         incomingFrames.send(frame("""{"jsonrpc":"2.0","id":$number,"result":{"targets":[]}}"""))
