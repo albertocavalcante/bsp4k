@@ -49,14 +49,16 @@ internal object RequestIdSerializer : KSerializer<RequestId> {
     }
 
     override fun deserialize(decoder: Decoder): RequestId {
-        val json = decoder as? JsonDecoder ?: throw SerializationException("RequestId supports JSON only")
-        val element =
-            json.decodeJsonElement() as? JsonPrimitive
-                ?: throw SerializationException("RequestId must be a string or an integer")
+        val json = decoder as? JsonDecoder ?: jsonOnly()
+        val element = json.decodeJsonElement() as? JsonPrimitive ?: invalidId()
         return when {
             element.isString -> RequestId.StringId(element.content)
             element.intOrNull != null -> RequestId.IntId(element.int)
-            else -> throw SerializationException("RequestId must be a string or an integer")
+            else -> invalidId()
         }
     }
+
+    private fun jsonOnly(): Nothing = throw SerializationException("RequestId supports JSON only")
+
+    private fun invalidId(): Nothing = throw SerializationException("RequestId must be a string or an integer")
 }
