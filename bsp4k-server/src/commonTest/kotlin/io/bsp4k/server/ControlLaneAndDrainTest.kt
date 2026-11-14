@@ -11,6 +11,7 @@ import io.bsp4k.protocol.WorkspaceBuildTargetsResult
 import io.jsonrpc4k.core.BoundedDispatchPolicy
 import io.jsonrpc4k.core.ResponseError
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
@@ -20,9 +21,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 /** `run/readStdin` reaches a running `buildTarget/run`, and admitted requests are answered after EOF. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ControlLaneAndDrainTest {
     private val target = BuildTargetIdentifier("file:///workspace/app")
 
@@ -84,6 +87,30 @@ class ControlLaneAndDrainTest {
         runTest { runWithStdin(policy = BoundedDispatchPolicy(maxConcurrentRequests = 4, maxQueuedMessages = 64)) }
 
     @Test
+    fun `stdin is accepted from the initialize result on while barrier notifications are still dropped`() =
+        runTest {
+            val received = mutableListOf<String>()
+            val (server, peer) =
+                buildServer {
+                    run { readStdin { params -> received += "stdin ${params.originId}" } }
+                    onNotification("custom/didChange") { received += "didChange" }
+                }.connect(backgroundScope)
+            val stdin = encode(ReadParams.serializer(), ReadParams("run-0", message = "early\n"))
+
+            peer.notify(BspMethods.RUN_READ_STDIN, stdin)
+            delay(100)
+            assertEquals(emptyList<String>(), received, "stdin before build/initialize must be dropped")
+
+            assertNull(peer.initialize().error)
+            assertEquals(BuildServerState.AwaitingInitialized, server.state.value)
+            peer.notify(BspMethods.RUN_READ_STDIN, encode(ReadParams.serializer(), ReadParams("run-1", message = "x\n")))
+            peer.notify("custom/didChange")
+            delay(100)
+            assertEquals(listOf("stdin run-1"), received)
+            server.close()
+        }
+
+    @Test
     fun `other notifications stay ordering barriers behind running requests`() =
         runTest {
             val entered = CompletableDeferred<Unit>()
@@ -142,10 +169,13 @@ class ControlLaneAndDrainTest {
             peer.handshake()
 
             val targets = peer.sendRequest(BspMethods.WORKSPACE_BUILD_TARGETS)
+            val closedAt = testScheduler.currentTime
             transport.toServer.close()
 
             assertError(ResponseError.REQUEST_CANCELLED, peer.response(targets))
             assertNull(withTimeout(5_000) { server.awaitTermination() })
+            val elapsed = testScheduler.currentTime - closedAt
+            assertTrue(elapsed < 1_000, "teardown took $elapsed ms, so the 200 ms policy drain timeout was not used")
         }
 
     private fun slowTargetsServer(): BuildServerConfig =

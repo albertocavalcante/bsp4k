@@ -85,8 +85,9 @@ the Windows x64 job links their test executables and the Windows ARM64 job runs 
   `build/initialized` must precede later requests, `build/exit` must follow the requests before it, and
   `$/cancelRequest` already bypasses the queue. A `readStdin` handler can run before its `run` handler
   starts (when that request is waiting for a concurrency slot), so buffer input by `originId`; it is
-  also no longer ordered after `build/initialized`, so input sent before initialization completes is
-  dropped like any notification outside the running state. The
+  also no longer ordered after `build/initialized`, so the server accepts it as soon as the initialize
+  result was produced (it can overtake a `build/initialized` sent before it) and drops only input that
+  arrives before that or after `build/shutdown`. The
   client lists no control notifications: BSP has no server-to-client requests for a notification to
   wait behind, and task and output notifications must stay ordered.
 - **End of input:** when the transport's input ends, a session stops reading, lets the requests and
@@ -94,7 +95,9 @@ the Windows x64 job links their test executables and the Windows ARM64 job runs 
   `endInput()`, then `flushOutgoing()`, then `close()`). A client that closes its output right after its
   last request therefore still gets the response. `BoundedDispatchPolicy.drainTimeout` (default 5 s)
   bounds the wait, and the flush after it; after it, remaining requests are cancelled and answered
-  with RequestCancelled. A client that has started `shutdown()` treats EOF as the server's answer to
+  with RequestCancelled. Teardown therefore takes at most three times the drain timeout; a zero timeout
+  cancels admitted work at once and discards queued replies. A client handler that calls back into the
+  server during the drain gets no response and waits until the drain timeout cancels it. A client that has started `shutdown()` treats EOF as the server's answer to
   `build/exit` and ends at once.
 
 ## Quick start

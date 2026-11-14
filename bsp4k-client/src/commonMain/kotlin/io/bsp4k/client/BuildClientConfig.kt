@@ -63,7 +63,11 @@ public fun buildClient(block: BuildClientBuilder.() -> Unit): BuildClientConfig 
  * When the transport's input ends, the session stops reading and lets the notifications and requests it
  * already admitted run, and writes any replies, before it terminates, so the last notifications a server
  * sends before closing its output still reach their handlers. [BoundedDispatchPolicy.drainTimeout]
- * (default 5 s) bounds that wait; after it, the remaining handlers are cancelled.
+ * (default 5 s) bounds that wait; after it, the remaining handlers are cancelled. Replies are then flushed
+ * within the same timeout, so EOF teardown takes at most three times the drain timeout; a zero drain
+ * timeout cancels admitted handlers at once and discards queued replies. A handler that calls back into
+ * the server during the drain (for example, refetching targets from `onDidChangeBuildTarget`) cannot get
+ * a response, because the server's output has ended: it waits until the drain timeout cancels it.
  * [inboundLimits] and [outboundLimits] are wire-size proxies, not a total heap bound; typed payload
  * conversion to JSON happens before outbound admission and is outside them. A transport collector
  * must not await reentrant sends on the same connection.

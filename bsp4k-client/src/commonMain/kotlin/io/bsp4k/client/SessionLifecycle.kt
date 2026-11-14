@@ -64,7 +64,9 @@ internal class SessionLifecycle(
      * what remains and answers it with RequestCancelled), then the writer flushes what was queued.
      * A peer that closes its output right after its last request therefore still receives the reply.
      * [drainTimeout] also bounds the flush, so a writer stuck on a peer that is gone cannot keep the
-     * session alive; the session then finishes and discards what is unwritten. Once [exit] has begun,
+     * session alive; the session then finishes and discards what is unwritten. The worst case is
+     * three times [drainTimeout] (twice inside endInput, once for the flush); a zero [drainTimeout]
+     * skips the flush, so queued replies are discarded. Once [exit] has begun,
      * EOF is the server's expected answer to `build/exit` and ends the session at once, as [exit]
      * documents, without waiting for the exit frame's write.
      */
