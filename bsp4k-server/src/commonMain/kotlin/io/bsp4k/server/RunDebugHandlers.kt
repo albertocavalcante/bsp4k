@@ -24,9 +24,12 @@ public class RunHandlersBuilder internal constructor(
     /**
      * Handles `run/readStdin` (unstable in BSP 2.2): input for a process started by `buildTarget/run`.
      *
-     * Limitation: jsonrpc4k runs a notification only after the requests received before it have finished, in
-     * both session modes. Until that changes, input sent while a `buildTarget/run` request is in progress
-     * reaches this handler only after that request has finished.
+     * The server dispatches `run/readStdin` on jsonrpc4k's control-notification lane rather than as an
+     * ordering barrier, so input sent while a `buildTarget/run` request is in progress reaches this
+     * handler while that request's handler is still running. Inputs keep their arrival order among
+     * themselves. The handler runs concurrently with request handlers, so share state with them safely,
+     * and it can run before the matching `run` handler has started (when that request is still waiting
+     * for a concurrency slot), so buffer input by `originId`.
      */
     public fun readStdin(handler: suspend BuildServerContext.(ReadParams) -> Unit) {
         registry.handleNotification(BspMethods.RUN_READ_STDIN, handler)

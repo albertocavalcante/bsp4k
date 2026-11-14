@@ -55,8 +55,15 @@ public fun buildClient(block: BuildClientBuilder.() -> Unit): BuildClientConfig 
  *
  * Dispatch is concurrent and bounded by [policy] (default: 16 concurrent handlers, 256 queued messages).
  * A notification is a barrier: earlier requests finish before it runs and later messages wait for it,
- * so server notifications are delivered to handlers in order. Inbound `$/cancelRequest` answers the
- * request with RequestCancelled (-32800) and cancels its handler coroutine.
+ * so server notifications are delivered to handlers in order. The client sets no
+ * [BoundedDispatchPolicy.controlNotifications]: BSP defines no server-to-client request that a
+ * notification could wait behind, and task and output notifications must stay ordered. Inbound
+ * `$/cancelRequest` answers the request with RequestCancelled (-32800) and cancels its handler coroutine.
+ *
+ * When the transport's input ends, the session stops reading and lets the notifications and requests it
+ * already admitted run, and writes any replies, before it terminates, so the last notifications a server
+ * sends before closing its output still reach their handlers. [BoundedDispatchPolicy.drainTimeout]
+ * (default 5 s) bounds that wait; after it, the remaining handlers are cancelled.
  * [inboundLimits] and [outboundLimits] are wire-size proxies, not a total heap bound; typed payload
  * conversion to JSON happens before outbound admission and is outside them. A transport collector
  * must not await reentrant sends on the same connection.
@@ -67,7 +74,13 @@ public suspend fun BuildClientConfig.start(
     policy: BoundedDispatchPolicy = SessionDefaults.policy,
     inboundLimits: InboundResourceLimits = SessionDefaults.inboundLimits,
     outboundLimits: OutboundResourceLimits = SessionDefaults.outboundLimits,
-): BuildClientSession = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
+): BuildClientSession =
+    startSession(
+        transport,
+        SessionLifecycle(scope, policy.drainTimeout) {
+            Connection(policy, inboundLimits, outboundLimits, it)
+        },
+    )
 
 private suspend fun BuildClientConfig.startSession(
     transport: Transport,
