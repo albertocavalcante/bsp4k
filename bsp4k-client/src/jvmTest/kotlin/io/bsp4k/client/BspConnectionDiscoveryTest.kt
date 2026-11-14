@@ -63,7 +63,8 @@ class BspConnectionDiscoveryTest {
     @Test
     fun `linux data directories follow the specification`() {
         // XDG_DATA_HOME must be absolute on the host file system: "/xdg" has no drive on Windows.
-        val xdg = Path.of("").toAbsolutePath().root.resolve("xdg")
+        val root = Path.of("").toAbsolutePath().root
+        val xdg = root.resolve("xdg")
         assertEquals(
             listOf(
                 xdg.resolve("bsp"),
