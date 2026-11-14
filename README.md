@@ -46,6 +46,22 @@ Typed `dataKind` payloads are available as `BspDataKind` values (`TaskStartDataK
 Methods outside this table can be served with `onRequest`/`onNotification` in `buildServer { }`
 and `onNotification` in `buildClient { }`.
 
+## Platform support
+
+| Platform | JVM (17+) | Node.js | Kotlin/Native |
+|---|---|---|---|
+| Linux x64 | tested in CI | tested in CI | tested in CI (`linuxX64`) |
+| Linux ARM64 | tested in CI | tested in CI | tested in CI (`linuxArm64`, cross-compiled on x64, run on an ARM64 runner) |
+| macOS x64 | not tested in CI | not tested in CI | compiled in CI, not run (`macosX64`) |
+| macOS ARM64 | not tested in CI | not tested in CI | tested in CI (`macosArm64`) |
+| Windows x64 | not tested in CI | not tested in CI | tested in CI (`mingwX64`) |
+| Windows ARM64 | tested in CI | tested in CI | x64 emulation: Kotlin/Native has no Windows ARM64 target, so the `mingwX64` executables run under Windows 11 x64 emulation |
+
+CI runs the ARM64 rows on hosted ARM64 runners (`ubuntu-24.04-arm`, `windows-11-arm`) with a
+native aarch64 JDK 17. Kotlin/Native has no Linux ARM64 host, so the `linuxArm64` test executables
+are cross-linked on an x64 runner and run on the ARM64 runner. Every library module has a `mingwX64` target;
+the Windows x64 job links their test executables and the Windows ARM64 job runs them.
+
 ## Targets and transports
 
 - **Targets:** JVM (toolchain and bytecode level 17), JS (browser and Node.js), macOS x64 and
@@ -157,6 +173,18 @@ val javac = session.server.java.javacOptions(JavacOptionsParams(targets), timeou
 
 session.shutdown() // build/shutdown, then build/exit
 ```
+
+## Building
+
+bsp4k builds jsonrpc4k from a sibling checkout (`../jsonrpc4k`, a Gradle composite build) when one
+exists, and from published coordinates otherwise or with `-Pbsp4k.useLocalJsonrpc4k=false`.
+
+The jsonrpc4k revision bsp4k is built against is pinned once, as `jsonrpc4k.rev` (a full commit SHA)
+in `gradle.properties`. CI reads the pin from there to check out jsonrpc4k, and `settings.gradle.kts`
+compares the sibling's git `HEAD` with it: a mismatch fails the build when `CI=true` and prints a
+warning otherwise. In CI a missing sibling checkout also fails the build, so a mis-laid-out job cannot
+silently fall back to published coordinates. To work locally against another jsonrpc4k revision, pass
+`-Pbsp4k.allowJsonrpc4kMismatch=true`. To move the pin, change `jsonrpc4k.rev` and nothing else.
 
 ## Testing
 

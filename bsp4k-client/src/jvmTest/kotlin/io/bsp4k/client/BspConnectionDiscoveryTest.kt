@@ -62,23 +62,29 @@ class BspConnectionDiscoveryTest {
 
     @Test
     fun `linux data directories follow the specification`() {
-        val directories =
-            dataDirectoriesFor("Linux", mapOf("XDG_DATA_HOME" to "/xdg"), "/home/user").map { it.toString() }
+        // XDG_DATA_HOME must be absolute on the host file system: "/xdg" has no drive on Windows.
+        val root = Path.of("").toAbsolutePath().root
+        val xdg = root.resolve("xdg")
         assertEquals(
-            listOf("/xdg/bsp", "/home/user/.local/share/bsp", "/usr/local/share/bsp", "/usr/share/bsp"),
-            directories,
+            listOf(
+                xdg.resolve("bsp"),
+                Path.of("/home/user/.local/share/bsp"),
+                Path.of("/usr/local/share/bsp"),
+                Path.of("/usr/share/bsp"),
+            ),
+            dataDirectoriesFor("Linux", mapOf("XDG_DATA_HOME" to xdg.toString()), "/home/user"),
         )
         assertEquals(
-            listOf("/home/user/.local/share/bsp", "/usr/local/share/bsp", "/usr/share/bsp"),
-            dataDirectoriesFor("Linux", mapOf("XDG_DATA_HOME" to "relative"), "/home/user").map { it.toString() },
+            listOf(Path.of("/home/user/.local/share/bsp"), Path.of("/usr/local/share/bsp"), Path.of("/usr/share/bsp")),
+            dataDirectoriesFor("Linux", mapOf("XDG_DATA_HOME" to "relative"), "/home/user"),
         )
     }
 
     @Test
     fun `macOS and Windows data directories follow the specification`() {
         assertEquals(
-            listOf("/Users/u/Library/Application Support/bsp", "/Library/Application Support/bsp"),
-            dataDirectoriesFor("Mac OS X", emptyMap(), "/Users/u").map { it.toString() },
+            listOf(Path.of("/Users/u/Library/Application Support/bsp"), Path.of("/Library/Application Support/bsp")),
+            dataDirectoriesFor("Mac OS X", emptyMap(), "/Users/u"),
         )
         assertEquals(
             listOf(Path.of("/local").resolve("bsp"), Path.of("/program").resolve("bsp")),

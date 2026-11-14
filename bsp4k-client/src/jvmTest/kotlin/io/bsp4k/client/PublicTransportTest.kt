@@ -296,7 +296,10 @@ class PublicTransportTest {
         mode: String = "normal",
         block: suspend (Process, ObservedTransport, ChildCleanup) -> Unit,
     ) {
-        val directory = Files.createTempDirectory("bsp-child-π-")
+        // The non-ASCII name checks that the child gets a Unicode path. Windows passes the argument to
+        // javac in the ANSI code page, which cannot represent it (javac reports "invalid path").
+        val directoryPrefix = if (System.getProperty("os.name").startsWith("Windows")) "bsp-child-" else "bsp-child-π-"
+        val directory = Files.createTempDirectory(directoryPrefix)
         val source = directory.resolve("BspFixturePeer.java")
         val errors = directory.resolve("stderr.log")
         var process: Process? = null

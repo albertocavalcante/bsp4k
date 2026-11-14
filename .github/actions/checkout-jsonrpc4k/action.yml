@@ -1,0 +1,41 @@
+name: Checkout jsonrpc4k
+description: >-
+  Checks out the jsonrpc4k revision pinned by jsonrpc4k.rev in gradle.properties as a sibling of the
+  bsp4k checkout. Run it after checking out bsp4k.
+
+inputs:
+  bsp4k-path:
+    description: Workspace-relative path of the bsp4k checkout
+    required: false
+    default: bsp4k
+  path:
+    description: Workspace-relative path to check jsonrpc4k out to
+    required: false
+    default: jsonrpc4k
+
+runs:
+  using: composite
+  steps:
+    - name: Read the jsonrpc4k pin from gradle.properties
+      id: pin
+      shell: bash
+      env:
+        PROPERTIES_FILE: ${{ inputs.bsp4k-path }}/gradle.properties
+      run: |
+        set -euo pipefail
+        rev=$(sed -n 's/^jsonrpc4k\.rev=//p' "$PROPERTIES_FILE" | tr -d '\r')
+        if [[ ! "$rev" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::jsonrpc4k.rev in $PROPERTIES_FILE must be a full 40-character commit SHA, got '$rev'"
+          exit 1
+        fi
+        echo "jsonrpc4k pin: $rev"
+        printf 'rev=%s\n' "$rev" >>"$GITHUB_OUTPUT"
+
+    - name: Checkout jsonrpc4k
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: albertocavalcante/jsonrpc4k
+        ref: ${{ steps.pin.outputs.rev }}
+        path: ${{ inputs.path }}
+        fetch-depth: 1
+        persist-credentials: false
