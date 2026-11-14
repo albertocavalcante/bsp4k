@@ -182,7 +182,8 @@ exists, and from published coordinates otherwise or with `-Pbsp4k.useLocalJsonrp
 The jsonrpc4k revision bsp4k is built against is pinned once, as `jsonrpc4k.rev` (a full commit SHA)
 in `gradle.properties`. CI reads the pin from there to check out jsonrpc4k, and `settings.gradle.kts`
 compares the sibling's git `HEAD` with it: a mismatch fails the build when `CI=true` and prints a
-warning otherwise. To work locally against another jsonrpc4k revision, pass
+warning otherwise. In CI a missing sibling checkout also fails the build, so a mis-laid-out job cannot
+silently fall back to published coordinates. To work locally against another jsonrpc4k revision, pass
 `-Pbsp4k.allowJsonrpc4kMismatch=true`. To move the pin, change `jsonrpc4k.rev` and nothing else.
 
 ## Testing

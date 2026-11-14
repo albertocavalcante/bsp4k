@@ -68,6 +68,15 @@ val allowJsonrpc4kMismatch =
         }.getOrElse(false)
 val runningInCi = providers.environmentVariable("CI").map { it == "true" }.getOrElse(false)
 
+if (useLocalJsonrpc4k && !jsonrpc4kDir.exists() && runningInCi) {
+    // A mis-laid-out CI job would otherwise fall back to published coordinates with no pin check.
+    throw GradleException(
+        "CI builds jsonrpc4k from the sibling checkout, but ${jsonrpc4kDir.absolutePath} does not exist. " +
+            "Check out jsonrpc4k at the revision pinned by jsonrpc4k.rev in gradle.properties, " +
+            "or pass -Pbsp4k.useLocalJsonrpc4k=false to build from published coordinates.",
+    )
+}
+
 if (useLocalJsonrpc4k && jsonrpc4kDir.exists()) {
     // The sibling checkout must be the pinned revision: fail in CI, warn locally. Local work against
     // another revision opts out with -Pbsp4k.allowJsonrpc4kMismatch=true.
