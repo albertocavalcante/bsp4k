@@ -78,7 +78,13 @@ if (useLocalJsonrpc4k && jsonrpc4kDir.exists()) {
                     commandLine("git", "-C", jsonrpc4kDir.absolutePath, "rev-parse", "HEAD")
                     isIgnoreExitValue = true
                 }
-            if (head.result.get().exitValue == 0) head.standardOutput.asText.get().trim() else null
+            if (head.result.get().exitValue == 0) {
+                head.standardOutput.asText
+                    .get()
+                    .trim()
+            } else {
+                null
+            }
         } catch (ignored: Exception) {
             null
         }
