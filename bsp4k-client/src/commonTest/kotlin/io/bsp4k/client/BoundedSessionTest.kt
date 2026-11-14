@@ -124,7 +124,7 @@ class BoundedSessionTest {
             val parent = SupervisorJob(backgroundScope.coroutineContext[Job])
             val scope = CoroutineScope(backgroundScope.coroutineContext + parent)
             val transport = BoundedClientTransport(respond = false)
-            val lifecycle = SessionLifecycle(scope) { Connection(policy(), inbound(), outbound(), it) }
+            val lifecycle = SessionLifecycle(scope, policy().drainTimeout) { Connection(policy(), inbound(), outbound(), it) }
             lifecycle.start(transport)
             runCatching { lifecycle.connection.receive("Content-Length: 4097\r\n\r\n") }
             parent.cancel()

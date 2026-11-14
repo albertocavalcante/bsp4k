@@ -78,6 +78,27 @@ the Windows x64 job links their test executables and the Windows ARM64 job runs 
   a cancelled request is answered with RequestCancelled (-32800) and its handler coroutine is cancelled.
   Notifications are ordering barriers, so `build/initialized` runs before later requests and
   task notifications arrive in order.
+- **Control notifications:** the server adds `run/readStdin` to the policy's
+  `controlNotifications`, whatever policy the caller passes. It skips the barrier and runs as soon as it
+  arrives, beside the request handlers and in arrival order with other control notifications, so a
+  running `buildTarget/run` handler receives its input. Every other notification stays a barrier:
+  `build/initialized` must precede later requests, `build/exit` must follow the requests before it, and
+  `$/cancelRequest` already bypasses the queue. A `readStdin` handler can run before its `run` handler
+  starts (when that request is waiting for a concurrency slot), so buffer input by `originId`; it is
+  also no longer ordered after `build/initialized`, so the server accepts it as soon as the initialize
+  result was produced (it can overtake a `build/initialized` sent before it) and drops only input that
+  arrives before that or after `build/shutdown`. The
+  client lists no control notifications: BSP has no server-to-client requests for a notification to
+  wait behind, and task and output notifications must stay ordered.
+- **End of input:** when the transport's input ends, a session stops reading, lets the requests and
+  notifications it already admitted finish, and writes their replies before it terminates (jsonrpc4k's
+  `endInput()`, then `flushOutgoing()`, then `close()`). A client that closes its output right after its
+  last request therefore still gets the response. `BoundedDispatchPolicy.drainTimeout` (default 5 s)
+  bounds the wait, and the flush after it; after it, remaining requests are cancelled and answered
+  with RequestCancelled. Teardown therefore takes at most three times the drain timeout; a zero timeout
+  cancels admitted work at once and discards queued replies. A client handler that calls back into the
+  server during the drain gets no response and waits until the drain timeout cancels it. A client that has started `shutdown()` treats EOF as the server's answer to
+  `build/exit` and ends at once.
 
 ## Quick start
 
@@ -177,14 +198,16 @@ session.shutdown() // build/shutdown, then build/exit
 ## Building
 
 bsp4k builds jsonrpc4k from a sibling checkout (`../jsonrpc4k`, a Gradle composite build) when one
-exists, and from published coordinates otherwise or with `-Pbsp4k.useLocalJsonrpc4k=false`.
+exists, and from published coordinates otherwise or with `-Pbsp4k.useLocalJsonrpc4k=false`. Point the
+composite build at another directory with `-Pbsp4k.jsonrpc4kBuild=<path>`.
 
-The jsonrpc4k revision bsp4k is built against is pinned once, as `jsonrpc4k.rev` (a full commit SHA)
-in `gradle.properties`. CI reads the pin from there to check out jsonrpc4k, and `settings.gradle.kts`
-compares the sibling's git `HEAD` with it: a mismatch fails the build when `CI=true` and prints a
+The jsonrpc4k revision bsp4k is built against is pinned once, as `bsp4k.jsonrpc4kPin` (a full commit
+SHA) in `gradle.properties`. CI reads the pin from there to check out jsonrpc4k, and `settings.gradle.kts`
+compares the checkout's git `HEAD` with it: a mismatch fails the build when `CI=true` and prints a
 warning otherwise. In CI a missing sibling checkout also fails the build, so a mis-laid-out job cannot
 silently fall back to published coordinates. To work locally against another jsonrpc4k revision, pass
-`-Pbsp4k.allowJsonrpc4kMismatch=true`. To move the pin, change `jsonrpc4k.rev` and nothing else.
+`-Pbsp4k.allowJsonrpc4kPinMismatch=true`. To move the pin, change `bsp4k.jsonrpc4kPin` and nothing else.
+`tools/ci/check-jsonrpc4k-pin-guard.sh` proves in CI that the guard fails, warns and opts out as described.
 
 ## Testing
 
@@ -196,8 +219,6 @@ destinations, an extension request, `buildTarget/didChange` and shutdown.
 
 ## Known limitations
 
-- `run/readStdin` cannot reach a `buildTarget/run` that is still running: jsonrpc4k dispatches a
-  notification only after earlier requests finish.
 - `run/printStdout`, `run/printStderr` and `run/readStdin` are unstable in BSP 2.2.0 and may change.
 - Handlers must cooperate with coroutine cancellation (suspend or `ensureActive`); a blocking handler
   keeps its concurrency slot until it returns, although its request is answered as cancelled.

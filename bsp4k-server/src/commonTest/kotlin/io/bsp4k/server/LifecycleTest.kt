@@ -24,6 +24,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
+private const val CUSTOM_NOTE = "custom/note"
+
 class LifecycleTest {
     private val stdin = ReadParams(originId = "run-1", message = "input")
     private val received = mutableListOf<String>()
@@ -32,6 +34,7 @@ class LifecycleTest {
         buildServer {
             workspace { buildTargets { WorkspaceBuildTargetsResult(emptyList()) } }
             run { readStdin { params -> received += "stdin:${params.message}" } }
+            onNotification(CUSTOM_NOTE) { received += "note" }
             block()
         }
 
@@ -96,7 +99,9 @@ class LifecycleTest {
 
             assertNull(peer.initialize().error)
             assertError(ResponseError.SERVER_NOT_INITIALIZED, peer.buildTargets())
-            peer.notify(BspMethods.RUN_READ_STDIN, encode(ReadParams.serializer(), stdin))
+            // A barrier notification is still dropped here; run/readStdin, a control notification, is
+            // accepted from AwaitingInitialized on (see ControlLaneAndDrainTest).
+            peer.notify(CUSTOM_NOTE)
             peer.notify(BspMethods.BUILD_INITIALIZED)
             assertNull(peer.buildTargets().error)
             peer.notify(BspMethods.BUILD_INITIALIZED)

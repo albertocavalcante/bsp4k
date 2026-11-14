@@ -20,7 +20,9 @@ public enum class BuildServerState {
 
     /**
      * The initialize result was produced; waiting for `build/initialized`. Application requests fail with
-     * ServerNotInitialized, application notifications are dropped, and `build/shutdown` is accepted.
+     * ServerNotInitialized, application notifications are dropped except control notifications such as
+     * `run/readStdin` (which skip the ordering barrier and can overtake `build/initialized`), and
+     * `build/shutdown` is accepted.
      */
     AwaitingInitialized,
 

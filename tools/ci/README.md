@@ -14,3 +14,7 @@ The publication workflow also disables composite substitution. It therefore requ
 By default BSP uses its existing dependency repositories. Set `-Pjsonrpc4k.repository=github` to route only `jsonrpc4k-core`, `jsonrpc4k-transport`, and their published variants exclusively to the fixed JSON-RPC GitHub Packages repository. Set `-Pbsp4k.useLocalJsonrpc4k=false` to consume binaries rather than an available sibling composite. Any other explicit repository selector is rejected.
 
 The route reuses `gpr.user` and `gpr.key` Gradle user properties, falling back to `GITHUB_ACTOR` and `GITHUB_TOKEN`. Keep credentials in private user configuration or the environment, not source or command arguments. GitHub Packages requires an authorized read path; availability of the declared snapshot, cross-repository access, and immutable release coordinates remain unverified. The test fixture redirects the selected repository to private local files; it does not authenticate to GitHub or prove registry access.
+
+## jsonrpc4k pin guard
+
+`check-jsonrpc4k-pin-guard.sh` runs `./gradlew help` against a throwaway jsonrpc4k checkout whose `HEAD` cannot match `bsp4k.jsonrpc4kPin`, and checks that the settings guard fails under `CI=true`, warns without it, and stays silent with `-Pbsp4k.allowJsonrpc4kPinMismatch=true`. It needs `RUNNER_TEMP` and runs from the bsp4k checkout root.

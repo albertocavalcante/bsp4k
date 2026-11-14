@@ -42,6 +42,7 @@ public class BuildServer internal constructor(
     private val config: BuildServerConfig,
     private val connection: Connection,
     private val lifecycle: SessionLifecycle,
+    private val controlNotifications: Set<String>,
 ) {
     private val lifecycleState = LifecycleState()
 
@@ -67,19 +68,31 @@ public class BuildServer internal constructor(
         }
 
         // BSP drops notifications that arrive before initialization completes or after shutdown.
+        // A control notification skips the barrier, so it can run before an earlier `build/initialized`
+        // has moved the state to Running; it is accepted from AwaitingInitialized on to close that race.
         config.notificationHandlers.forEach { (method, handler) ->
+            val control = method in controlNotifications
             connection.onNotification(method) { params ->
-                if (lifecycleState.current == BuildServerState.Running) handler(context, params)
+                if (acceptsNotification(control)) handler(context, params)
             }
         }
     }
+
+    private fun acceptsNotification(control: Boolean): Boolean =
+        when (lifecycleState.current) {
+            BuildServerState.Running -> true
+            BuildServerState.AwaitingInitialized -> control
+            else -> false
+        }
 
     /** Stops immediately, canceling pending work and discarding unsent frames; the transport remains caller-owned. */
     public fun close(): Unit = lifecycle.close()
 
     /**
      * Waits for session jobs to stop. Returns a terminal read, write, or bounded core failure,
-     * or null on EOF, explicit close, graceful exit, or parent cancellation. The session records
+     * or null on EOF, explicit close, graceful exit, or parent cancellation. On EOF the session
+     * first writes the replies it still owes; if that final write fails (for example because the
+     * peer closed both directions while a response was pending), the write failure is returned. The session records
      * its first observed end, then closes the core; a core failure claimed before that close
      * takes precedence. Concurrent sources do not have a global first-event ordering. The transport remains caller-owned
      * and its suspending operations must cooperate with coroutine cancellation. A caller may
@@ -164,9 +177,26 @@ public class BuildServer internal constructor(
  *
  * Dispatch is concurrent and bounded by [policy] (default: 16 concurrent requests, 256 queued messages).
  * A notification is a barrier: earlier requests finish before it runs and later messages wait for it,
- * so `build/initialized` precedes later requests and notifications keep their order. Inbound
- * `$/cancelRequest` answers the request with RequestCancelled (-32800) and cancels its handler coroutine.
+ * so `build/initialized` precedes later requests and notifications keep their order. The exception is
+ * `run/readStdin`, which the server always adds to [BoundedDispatchPolicy.controlNotifications]: it runs
+ * as soon as it arrives, beside the request handlers and in arrival order with other control
+ * notifications, so a running `buildTarget/run` handler receives its input. Because the `run` request
+ * itself may still be waiting for a concurrency slot, input can reach the `readStdin` handler before the
+ * `run` handler starts; buffer it by `originId`. Because it is no longer ordered after `build/initialized`,
+ * a control notification is accepted once the initialize result was produced
+ * ([BuildServerState.AwaitingInitialized]) rather than only in [BuildServerState.Running]; earlier ones
+ * are dropped. Other methods listed in the caller's policy bypass the barrier too, and lose their
+ * ordering with requests. Inbound `$/cancelRequest` answers the request
+ * with RequestCancelled (-32800) and cancels its handler coroutine.
  * A request arriving when the queue is full receives a server-busy error.
+ *
+ * When the transport's input ends, the session stops reading, lets the requests it already admitted
+ * finish and writes their responses before it terminates, so a client that closes its output right
+ * after its last request still gets the reply. [BoundedDispatchPolicy.drainTimeout] (default 5 s) bounds
+ * that wait: after it, the remaining handlers are cancelled and answered with RequestCancelled, and the
+ * session waits up to that long again for those replies to be queued, then flushes them within that
+ * timeout once more, so EOF teardown takes at most three times the drain timeout. A zero drain timeout
+ * waits for nothing: admitted handlers are cancelled at once and queued replies are discarded unsent.
  * [inboundLimits] and [outboundLimits] are wire-size proxies, not a total heap bound; typed payload
  * conversion to JSON happens before outbound admission and is outside them. A transport collector
  * must not await reentrant sends on the same connection.
@@ -177,13 +207,23 @@ public suspend fun BuildServerConfig.start(
     policy: BoundedDispatchPolicy = SessionDefaults.policy,
     inboundLimits: InboundResourceLimits = SessionDefaults.inboundLimits,
     outboundLimits: OutboundResourceLimits = SessionDefaults.outboundLimits,
-): BuildServer = startSession(transport, SessionLifecycle(scope) { Connection(policy, inboundLimits, outboundLimits, it) })
+): BuildServer {
+    val sessionPolicy = SessionDefaults.withControlNotifications(policy)
+    return startSession(
+        transport,
+        SessionLifecycle(scope, sessionPolicy.drainTimeout) {
+            Connection(sessionPolicy, inboundLimits, outboundLimits, it)
+        },
+        sessionPolicy.controlNotifications,
+    )
+}
 
 private suspend fun BuildServerConfig.startSession(
     transport: Transport,
     lifecycle: SessionLifecycle,
+    controlNotifications: Set<String>,
 ): BuildServer {
-    val server = BuildServer(this, lifecycle.connection, lifecycle)
+    val server = BuildServer(this, lifecycle.connection, lifecycle, controlNotifications)
     try {
         server.setup()
         lifecycle.start(transport)

@@ -13,11 +13,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
 
 /** Owns session jobs; the supplied scope and transport remain caller-owned. */
 internal class SessionLifecycle(
     parent: CoroutineScope,
+    private val drainTimeout: Duration,
     connectionFactory: (CoroutineScope) -> Connection,
 ) {
     private data class End(
@@ -30,6 +33,7 @@ internal class SessionLifecycle(
     val connection = connectionFactory(scope)
     private val end = MutableStateFlow<End?>(null)
     private val terminated = CompletableDeferred<Throwable?>()
+    private val exiting = MutableStateFlow(false)
 
     init {
         job.invokeOnCompletion {
@@ -44,8 +48,32 @@ internal class SessionLifecycle(
                 if (state is ConnectionState.Failed) finish(state.cause)
             }
         }
-        scope.launch { runPump { transport.incoming.collect { connection.receive(it) } } }
+        scope.launch {
+            runPump {
+                transport.incoming.collect { connection.receive(it) }
+                drainAfterEndOfInput()
+            }
+        }
         scope.launch { runPump { connection.outgoing.collect { transport.send(it) } } }
+    }
+
+    /**
+     * The transport delivered its last inbound byte. Requests already admitted still get their
+     * responses written before the session finishes: the core stops admission and waits for admitted
+     * work (bounded by [io.jsonrpc4k.core.BoundedDispatchPolicy.drainTimeout], after which it cancels
+     * what remains and answers it with RequestCancelled), then the writer flushes what was queued.
+     * A peer that closes its output right after its last request therefore still receives the reply.
+     * [drainTimeout] also bounds the flush, so a writer stuck on a peer that is gone cannot keep the
+     * session alive; the session then finishes and discards what is unwritten. The worst case is
+     * three times [drainTimeout] (twice inside endInput, once for the flush); a zero [drainTimeout]
+     * skips the flush, so queued replies are discarded. Once [exit] has begun,
+     * EOF is the server's expected answer to `build/exit` and ends the session at once, as [exit]
+     * documents, without waiting for the exit frame's write.
+     */
+    private suspend fun drainAfterEndOfInput() {
+        if (exiting.value) return
+        connection.endInput()
+        withTimeoutOrNull(drainTimeout) { connection.flushOutgoing() }
     }
 
     private suspend fun runPump(block: suspend () -> Unit) {
@@ -73,6 +101,7 @@ internal class SessionLifecycle(
      * example because the peer closes after reading that frame, the session outcome is the result.
      */
     suspend fun exit(send: suspend () -> Unit) {
+        exiting.value = true
         try {
             send()
             flushOutgoing()

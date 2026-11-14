@@ -134,7 +134,9 @@ public class BuildClientSession internal constructor(
 
     /**
      * Waits for session jobs to stop. Returns a terminal read, write, or bounded core failure,
-     * or null on EOF, explicit close, graceful exit, or parent cancellation. The session records
+     * or null on EOF, explicit close, graceful exit, or parent cancellation. On EOF the session
+     * first writes the replies it still owes; if that final write fails (for example because the
+     * peer closed both directions while a reply was pending), the write failure is returned. The session records
      * its first observed end, then closes the core; a core failure claimed before that close
      * takes precedence. Concurrent sources do not have a global first-event ordering. The transport remains caller-owned
      * and its suspending operations must cooperate with coroutine cancellation. A caller may

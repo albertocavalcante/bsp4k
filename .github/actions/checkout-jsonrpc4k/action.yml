@@ -1,6 +1,6 @@
 name: Checkout jsonrpc4k
 description: >-
-  Checks out the jsonrpc4k revision pinned by jsonrpc4k.rev in gradle.properties as a sibling of the
+  Checks out the jsonrpc4k revision pinned by bsp4k.jsonrpc4kPin in gradle.properties as a sibling of the
   bsp4k checkout. Run it after checking out bsp4k.
 
 inputs:
@@ -23,9 +23,9 @@ runs:
         PROPERTIES_FILE: ${{ inputs.bsp4k-path }}/gradle.properties
       run: |
         set -euo pipefail
-        rev=$(sed -n 's/^jsonrpc4k\.rev=//p' "$PROPERTIES_FILE" | tr -d '\r')
+        rev=$(sed -n 's/^bsp4k\.jsonrpc4kPin=//p' "$PROPERTIES_FILE" | tr -d '\r')
         if [[ ! "$rev" =~ ^[0-9a-f]{40}$ ]]; then
-          echo "::error::jsonrpc4k.rev in $PROPERTIES_FILE must be a full 40-character commit SHA, got '$rev'"
+          echo "::error::bsp4k.jsonrpc4kPin in $PROPERTIES_FILE must be a full 40-character commit SHA, got '$rev'"
           exit 1
         fi
         echo "jsonrpc4k pin: $rev"
